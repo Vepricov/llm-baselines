@@ -13,6 +13,7 @@ from .redpajama import get_redpajama_data, get_redpajamav2_data
 from .shakespeare import get_shakespeare_data
 from .slimpajama import get_slimpajama_data
 from .wikitext import get_wikitext_data
+from .two_phase import TwoPhaseDataReader, get_fineweb_twophase_paths
 
 
 def get_dataset(args) -> Dict[str, np.ndarray]:
@@ -46,6 +47,8 @@ def get_dataset(args) -> Dict[str, np.ndarray]:
         return get_fineweb_data(args.datasets_dir)
     if args.dataset == "finewebedu":
         return get_fineweb_edu_data(args.datasets_dir)
+    if args.dataset == "fineweb_twophase":
+        return get_fineweb_twophase_paths(args.datasets_dir)
     else:
         raise NotImplementedError(f"Unknow dataset key '{args.dataset}'")
 

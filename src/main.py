@@ -13,7 +13,7 @@ import torch
 import config
 import distributed
 import wandb
-from data.utils import DataReader, get_dataset
+from data.utils import DataReader, TwoPhaseDataReader, get_dataset
 from models.utils import get_model
 from optim.adafactor import Adafactor
 from optim.adammini import Adam_mini
@@ -47,6 +47,9 @@ from optim.soap import SOAP
 from optim.sophia import SophiaG
 
 from optim.dykaf import DyKAF
+from optim.dykaf_with_parallel_proj_split import DyKAF as DyKAF_new
+from optim.kl_opt import KLOpt
+from optim.shampoo_dykaf import DyKAFShampoo
 
 def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
@@ -162,7 +165,34 @@ def main(args, parser):
             correct_bias=args.correct_bias,
             init=args.dykaf_init,
             adam_rank_one=args.dykaf_rank_one,
-            report_fisher_diff=args.report_fisher_diff,
+            report_fisher_diff=args.dykaf_report_fisher_diff,
+        )
+    elif args.opt == "dykaf_new":
+        opt = DyKAF_new(
+            group_specs,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            shampoo_beta=args.shampoo_beta,
+            weight_decay=args.weight_decay,
+            precondition_frequency=args.precondition_frequency,
+            max_precond_dim=args.max_precond_dim,
+            merge_dims=args.merge_dims,
+            precondition_1d=args.precondition_1d,
+            normalize_grads=args.normalize_grads,
+            data_format=args.soap_data_format,
+            correct_bias=args.correct_bias,
+            init=args.dykaf_init,
+            adam_rank_one=args.dykaf_rank_one,
+            report_fisher_diff=args.dykaf_report_fisher_diff,
+        )
+    elif args.opt == "kl_soap":
+        opt = KLOpt(
+            group_specs,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            shampoo_beta=args.shampoo_beta,
+            weight_decay=args.weight_decay,
+            max_precond_dim=args.max_precond_dim,
         )
     elif args.opt == "soap":
         opt = SOAP(
@@ -178,7 +208,7 @@ def main(args, parser):
             normalize_grads=args.normalize_grads,
             data_format=args.soap_data_format,
             correct_bias=args.correct_bias,
-            report_fisher_diff=args.report_fisher_diff,
+            report_fisher_diff=args.dykaf_report_fisher_diff,
         )
     elif args.opt == "muon":
         param_list = (
@@ -321,6 +351,19 @@ def main(args, parser):
             #     beta2=args.beta2,  # oroginally, the default value is 0.999
             #     epsilon=1e-8,
             # ),
+        )
+    elif args.opt == "shampoo_dykaf":
+        opt = DyKAFShampoo(
+            group_specs,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            weight_decay=args.weight_decay,
+            shampoo_decay=(
+                args.shampoo_beta if args.shampoo_beta >= 0 else args.beta2
+            ),
+            init=args.dykaf_init,
+            max_precond_dim=args.max_precond_dim,
+            precondition_frequency=args.precondition_frequency,
         )
     elif args.opt == "adopt":
         opt = ADOPT(
@@ -531,15 +574,37 @@ def main(args, parser):
 
 def get_data_readers(args, verbose=True):
     data_srcs = get_dataset(args)
-    train_reader = DataReader(
-        data_src=data_srcs["train"],
-        batch_size=args.batch_size,
-        sequence_length=args.sequence_length,
-        seed=args.data_seed,
-        with_replacement=False,
-        auto_shard=True,
-        keep_in_ram=args.data_in_ram,
-    )
+    if args.dataset == "fineweb_twophase":
+        assert args.two_phase_switch_step > 0, "--two_phase_switch_step required for fineweb_twophase"
+        r1 = DataReader(
+            data_src=data_srcs["train_phase1"],
+            batch_size=args.batch_size,
+            sequence_length=args.sequence_length,
+            seed=args.data_seed,
+            with_replacement=False,
+            auto_shard=True,
+            keep_in_ram=args.data_in_ram,
+        )
+        r2 = DataReader(
+            data_src=data_srcs["train_phase2"],
+            batch_size=args.batch_size,
+            sequence_length=args.sequence_length,
+            seed=args.data_seed + 1,
+            with_replacement=False,
+            auto_shard=True,
+            keep_in_ram=args.data_in_ram,
+        )
+        train_reader = TwoPhaseDataReader(r1, r2, args.two_phase_switch_step)
+    else:
+        train_reader = DataReader(
+            data_src=data_srcs["train"],
+            batch_size=args.batch_size,
+            sequence_length=args.sequence_length,
+            seed=args.data_seed,
+            with_replacement=False,
+            auto_shard=True,
+            keep_in_ram=args.data_in_ram,
+        )
     val_reader = DataReader(
         data_src=data_srcs["val"],
         batch_size=args.batch_size,

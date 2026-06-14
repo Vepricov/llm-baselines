@@ -12,6 +12,7 @@ def get_fineweb_data(datasets_dir, num_proc=40):
     """To change the cache dir, run `export HF_HOME=/path/to/cache/` before running the code."""
     FWEB_DATA_PATH = os.path.join(datasets_dir, "fineweb-100BT/")
     if not os.path.exists(os.path.join(FWEB_DATA_PATH, "train.bin")):
+        print(f"No data in {FWEB_DATA_PATH}!")
         os.makedirs(FWEB_DATA_PATH, exist_ok=True)
 
         dataset = load_dataset(
@@ -73,4 +74,4 @@ def get_fineweb_data(datasets_dir, num_proc=40):
 
 
 if __name__ == "__main__":
-    get_fineweb_data("./datasets/")
+    get_fineweb_data("~/../../datasets/")
