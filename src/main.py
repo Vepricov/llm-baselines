@@ -364,6 +364,7 @@ def main(args, parser):
             init=args.dykaf_init,
             max_precond_dim=args.max_precond_dim,
             precondition_frequency=args.precondition_frequency,
+            damping=args.shampoo_damping,
             precond_mode="proj_split",
         )
     elif args.opt == "shampoo_ema":
@@ -378,6 +379,7 @@ def main(args, parser):
             init=args.dykaf_init,
             max_precond_dim=args.max_precond_dim,
             precondition_frequency=args.precondition_frequency,
+            damping=args.shampoo_damping,
             precond_mode="ema",
         )
     elif args.opt == "adopt":

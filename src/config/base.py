@@ -127,6 +127,7 @@ def parse_args(base_parser, args, namespace):
     )  # default value is 1.0 in NanoGPT
     parser.add_argument("--momentum", default=0.9, type=float)
     parser.add_argument("--shampoo_beta", default=-1.0, type=float)
+    parser.add_argument("--shampoo_damping", default=1e-4, type=float)
     parser.add_argument("--precondition_frequency", default=10, type=int)
     parser.add_argument("--max_precond_dim", default=10000, type=int)
     parser.add_argument("--merge_dims", default=False, type=bool)

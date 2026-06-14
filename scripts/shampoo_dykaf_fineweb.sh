@@ -14,8 +14,9 @@ do
         --model llama \
         --dataset fineweb \
         --optimizer shampoo_dykaf \
-        --dykaf_init eps \
+        --dykaf_init kron \
         --shampoo_beta 0.999 \
+        --shampoo_damping 1e-2 \
         --precondition_frequency 10 \
         --max_precond_dim 10000 \
         --lr 5e-4 \
