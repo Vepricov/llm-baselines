@@ -115,6 +115,7 @@ def parse_args(base_parser, args, namespace):
             "kl_soap",
             "shampoo_dykaf",
             "shampoo_ema",
+            "pmuon",
         ],
     )
     parser.add_argument("--batch_size", default=50, type=int)
@@ -138,6 +139,8 @@ def parse_args(base_parser, args, namespace):
     parser.add_argument("--nesterov", default=False, type=bool)
     parser.add_argument("--muon_ns_steps", default=5, type=int)
     parser.add_argument("--muon_lr_factor", default=1.0, type=float)
+    parser.add_argument("--pmuon_gamma", default=0.3, type=float)
+    parser.add_argument("--pmuon_cov_beta", default=0.95, type=float)
     parser.add_argument("--adema_beta3", default=0.9, type=float)
     parser.add_argument("--adema_alpha", default=2.0, type=float)
     parser.add_argument("--adema_beta3_warmup", default=None, type=int)
