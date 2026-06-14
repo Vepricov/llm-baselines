@@ -116,6 +116,7 @@ def parse_args(base_parser, args, namespace):
             "shampoo_dykaf",
             "shampoo_ema",
             "pmuon",
+            "pmuon_dykaf",
         ],
     )
     parser.add_argument("--batch_size", default=50, type=int)

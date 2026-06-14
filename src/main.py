@@ -246,6 +246,32 @@ def main(args, parser):
             ns_steps=args.muon_ns_steps,
             gamma=args.pmuon_gamma,
             cov_beta=args.pmuon_cov_beta,
+            cov_mode="ema",
+            precond_freq=args.precondition_frequency,
+            max_precond_dim=args.max_precond_dim,
+            adamw_params=None,
+            adamw_lr=args.lr,
+            adamw_betas=(args.beta1, args.beta2),
+            adamw_eps=1e-8,
+            adamw_wd=args.weight_decay,
+        )
+    elif args.opt == "pmuon_dykaf":
+        param_list = (
+            list(p for p in model.parameters() if p.requires_grad)
+            if args.distributed_backend is None
+            else list(p for p in model.module.parameters() if p.requires_grad)
+        )
+        opt = PMuon(
+            muon_params=param_list,
+            lr=args.muon_lr_factor,
+            momentum=args.momentum,
+            nesterov=args.nesterov,
+            ns_steps=args.muon_ns_steps,
+            gamma=args.pmuon_gamma,
+            cov_beta=args.pmuon_cov_beta,
+            cov_mode="proj_split",
+            precond_freq=args.precondition_frequency,
+            max_precond_dim=args.max_precond_dim,
             adamw_params=None,
             adamw_lr=args.lr,
             adamw_betas=(args.beta1, args.beta2),
@@ -521,7 +547,7 @@ def main(args, parser):
                     div_factor=1e2,
                     final_div_factor=1,
                 )
-                if args.opt not in ("muon", "pmuon")
+                if args.opt not in ("muon", "pmuon", "pmuon_dykaf")
                 else CombinedScheduler(opt, args)
             )
         elif args.scheduler == "cos_inf":
@@ -534,7 +560,7 @@ def main(args, parser):
             )
             scheduler = (
                 torch.optim.lr_scheduler.LambdaLR(opt, lambda_schedule)
-                if args.opt not in ("muon", "pmuon")
+                if args.opt not in ("muon", "pmuon", "pmuon_dykaf")
                 else CombinedScheduler(opt, args)
             )
         elif args.scheduler == "wsd":
@@ -548,7 +574,7 @@ def main(args, parser):
             )
             scheduler = (
                 torch.optim.lr_scheduler.LambdaLR(opt, lambda_schedule)
-                if args.opt not in ("muon", "pmuon")
+                if args.opt not in ("muon", "pmuon", "pmuon_dykaf")
                 else CombinedScheduler(opt, args)
             )
         elif args.scheduler == "cos_wsd":

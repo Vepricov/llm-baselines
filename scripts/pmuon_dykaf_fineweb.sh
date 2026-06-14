@@ -4,7 +4,7 @@
 # (gamma=0.3, cov_beta=0.95, lr=0.035, nesterov). 124M llama, fineweb.
 # Baseline for the planned pmuon_dykaf (proj_split factors) comparison.
 
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=1
 for iterations in 16000
 do
     python \
@@ -12,7 +12,7 @@ do
         --run_prefix time_abl \
         --model llama \
         --dataset fineweb \
-        --optimizer pmuon \
+        --optimizer pmuon_dykaf \
         --muon_lr_factor 0.035 \
         --pmuon_gamma 0.3 \
         --pmuon_cov_beta 0.95 \

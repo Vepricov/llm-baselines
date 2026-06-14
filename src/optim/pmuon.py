@@ -24,6 +24,7 @@ import torch
 import torch.distributed as dist
 
 from .muon import zeropower_via_newtonschulz5
+from .dykaf_with_parallel_proj_split import proj_split
 
 
 @torch.no_grad()
@@ -63,6 +64,9 @@ class PMuon(torch.optim.Optimizer):
         ns_steps=6,
         gamma=0.3,
         cov_beta=0.95,
+        cov_mode="ema",
+        precond_freq=1,
+        max_precond_dim=10000,
         adamw_params=None,
         adamw_lr=3e-4,
         adamw_betas=(0.95, 0.95),
@@ -76,6 +80,9 @@ class PMuon(torch.optim.Optimizer):
             ns_steps=ns_steps,
             gamma=gamma,
             cov_beta=cov_beta,
+            cov_mode=cov_mode,
+            precond_freq=precond_freq,
+            max_precond_dim=max_precond_dim,
             adamw_lr=adamw_lr,
             adamw_lr_ratio=adamw_lr / lr,
             adamw_betas=adamw_betas,
@@ -113,6 +120,9 @@ class PMuon(torch.optim.Optimizer):
             momentum = group["momentum"]
             gamma = group["gamma"]
             cov_beta = group["cov_beta"]
+            cov_mode = group["cov_mode"]
+            precond_freq = group["precond_freq"]
+            max_precond_dim = group["max_precond_dim"]
             eps = 1e-6
 
             total_params = sum(p.numel() for p in params)
@@ -129,32 +139,53 @@ class PMuon(torch.optim.Optimizer):
                     state = self.state[p]
                     if "momentum_buffer" not in state:
                         state["momentum_buffer"] = torch.zeros_like(g)
-                        state["cov_buf"] = torch.zeros(
-                            g.size(1), g.size(1), device=g.device, dtype=g.dtype
-                        )
-                        state["out_buf"] = torch.zeros(
-                            g.size(0), g.size(0), device=g.device, dtype=g.dtype
-                        )
+                        state["pm_step"] = 0
+                        if cov_mode == "ema":
+                            state["cov_buf"] = torch.zeros(
+                                g.size(1), g.size(1), device=g.device, dtype=g.dtype
+                            )
+                            state["out_buf"] = torch.zeros(
+                                g.size(0), g.size(0), device=g.device, dtype=g.dtype
+                            )
+                        else:  # proj_split (DyKAF factors)
+                            state["Lp"] = torch.zeros(
+                                g.size(0), g.size(0), device=g.device, dtype=g.dtype
+                            )
+                            state["Rp"] = torch.zeros(
+                                g.size(1), g.size(1), device=g.device, dtype=g.dtype
+                            )
                     buf = state["momentum_buffer"]
+                    state["pm_step"] += 1
 
                     # --- pmuon momentum (EMA + nesterov), as in the record ---
                     buf.lerp_(g, 1 - momentum)
                     u = g.lerp(buf, momentum) if group["nesterov"] else buf
 
-                    # --- streaming covariance estimates of the update u ---
-                    cov_ = u.mT @ u
-                    state["cov_buf"].mul_(cov_beta).add_(cov_)
-                    C_reg = torch.add(cov_, state["cov_buf"], alpha=cov_beta)
+                    # --- left/right factors A (m x m), C (n x n) of the update u ---
+                    if cov_mode == "ema":
+                        cov_ = u.mT @ u
+                        state["cov_buf"].mul_(cov_beta).add_(cov_)
+                        C_reg = torch.add(cov_, state["cov_buf"], alpha=cov_beta)
+                        out_ = u @ u.mT
+                        state["out_buf"].mul_(cov_beta).add_(out_)
+                        A_reg = torch.add(out_, state["out_buf"], alpha=cov_beta)
+                    else:  # DyKAF: near-optimal Kronecker factors via proj_split
+                        state["Lp"], state["Rp"] = proj_split(
+                            state["Lp"], state["Rp"], u.clone(),
+                            beta=cov_beta, init="kron", max_precond_dim=max_precond_dim,
+                        )
+                        A_reg = state["Lp"].clone()
+                        C_reg = state["Rp"].clone()
+                    A_reg.diagonal().add_(eps)
                     C_reg.diagonal().add_(eps)
 
-                    out_ = u @ u.mT
-                    state["out_buf"].mul_(cov_beta).add_(out_)
-                    A_reg = torch.add(out_, state["out_buf"], alpha=cov_beta)
-                    A_reg.diagonal().add_(eps)
+                    # --- A^{-gamma}, C^{-gamma} (cached, refreshed every precond_freq) ---
+                    if state["pm_step"] == 1 or state["pm_step"] % precond_freq == 0:
+                        state["A_neg"] = _streaming_cov_power(A_reg, state, "out_Q", gamma)
+                        state["C_neg"] = _streaming_cov_power(C_reg, state, "cov_Q", gamma)
+                    A_neg, C_neg = state["A_neg"], state["C_neg"]
 
-                    # --- A^{-gamma} u C^{-gamma}, then polar via Newton-Schulz ---
-                    C_neg = _streaming_cov_power(C_reg, state, "cov_Q", gamma)
-                    A_neg = _streaming_cov_power(A_reg, state, "out_Q", gamma)
+                    # --- polar via Newton-Schulz ---
                     upd = zeropower_via_newtonschulz5(
                         A_neg @ u @ C_neg, steps=group["ns_steps"]
                     )
