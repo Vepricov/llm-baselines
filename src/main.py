@@ -364,6 +364,21 @@ def main(args, parser):
             init=args.dykaf_init,
             max_precond_dim=args.max_precond_dim,
             precondition_frequency=args.precondition_frequency,
+            precond_mode="proj_split",
+        )
+    elif args.opt == "shampoo_ema":
+        opt = DyKAFShampoo(
+            group_specs,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            weight_decay=args.weight_decay,
+            shampoo_decay=(
+                args.shampoo_beta if args.shampoo_beta >= 0 else args.beta2
+            ),
+            init=args.dykaf_init,
+            max_precond_dim=args.max_precond_dim,
+            precondition_frequency=args.precondition_frequency,
+            precond_mode="ema",
         )
     elif args.opt == "adopt":
         opt = ADOPT(

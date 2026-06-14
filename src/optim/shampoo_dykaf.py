@@ -44,7 +44,11 @@ def _inv_sqrt(M: torch.Tensor, damping: float, eps: float) -> torch.Tensor:
     eigvals, eigvecs = torch.linalg.eigh(M)
     eigvals = eigvals.clamp_min(0)
     lam_max = eigvals.max().clamp_min(eps)
-    inv_sqrt_eigvals = (eigvals + damping * lam_max + eps).rsqrt()
+    # Normalize to unit max eigenvalue so the preconditioner's absolute scale
+    # (which differs a lot between proj_split and ema L/R) is absorbed by lr,
+    # making the two modes comparable and avoiding scale-driven blow-ups.
+    eigvals = eigvals / lam_max
+    inv_sqrt_eigvals = (eigvals + damping + eps).rsqrt()
     return (eigvecs * inv_sqrt_eigvals.unsqueeze(-2)) @ eigvecs.transpose(-1, -2)
 
 
@@ -78,7 +82,12 @@ class DyKAFShampoo(torch.optim.Optimizer):
         max_precond_dim: int = 10000,
         damping: float = 1e-4,
         precondition_frequency: int = 10,
+        precond_mode: str = "proj_split",
     ):
+        if precond_mode not in ("proj_split", "ema"):
+            raise ValueError(
+                f"Invalid precond_mode: {precond_mode}. Use 'proj_split' or 'ema'."
+            )
         if not 0.0 <= lr:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
@@ -104,6 +113,7 @@ class DyKAFShampoo(torch.optim.Optimizer):
             max_precond_dim=max_precond_dim,
             damping=damping,
             precondition_frequency=precondition_frequency,
+            precond_mode=precond_mode,
         )
         super().__init__(params, defaults)
 
@@ -150,6 +160,7 @@ class DyKAFShampoo(torch.optim.Optimizer):
             max_precond_dim = group["max_precond_dim"]
             damping = group["damping"]
             precondition_frequency = group["precondition_frequency"]
+            precond_mode = group["precond_mode"]
 
             for p in group["params"]:
                 if p.grad is None:
@@ -169,27 +180,35 @@ class DyKAFShampoo(torch.optim.Optimizer):
                 exp_avg = state["exp_avg"]
                 exp_avg_sq = state["exp_avg_sq"]
 
-                # ---- DyKAF L/R update (replaces Shampoo's g g^T / g^T g EMA) ----
+                # ---- L/R preconditioner update ----
+                # precond_mode "proj_split": fast DyKAF projector-splitting (default).
+                # precond_mode "ema": standard Shampoo full-matrix g g^T / g^T g EMA.
                 if grad.dim() == 2:
-                    # proj_split scales its gradient argument in place, so pass a copy.
-                    L, R = proj_split(
-                        state["preconditioner1"],
-                        state["preconditioner2"],
-                        grad.clone(),
-                        beta=shampoo_decay,
-                        init=init,
-                        max_precond_dim=max_precond_dim,
-                    )
-                    state["preconditioner1"] = L
-                    state["preconditioner2"] = R
+                    if precond_mode == "proj_split":
+                        # proj_split scales its gradient argument in place; pass a copy.
+                        state["preconditioner1"], state["preconditioner2"] = proj_split(
+                            state["preconditioner1"],
+                            state["preconditioner2"],
+                            grad.clone(),
+                            beta=shampoo_decay,
+                            init=init,
+                            max_precond_dim=max_precond_dim,
+                        )
+                    else:  # "ema" — vanilla Shampoo baseline
+                        if _is_active(state["preconditioner1"]):
+                            state["preconditioner1"].mul_(shampoo_decay).add_(
+                                grad @ grad.t(), alpha=1 - shampoo_decay
+                            )
+                        if _is_active(state["preconditioner2"]):
+                            state["preconditioner2"].mul_(shampoo_decay).add_(
+                                grad.t() @ grad, alpha=1 - shampoo_decay
+                            )
                     if dist.is_initialized():
                         world_size = dist.get_world_size()
-                        if _is_active(L):
-                            dist.all_reduce(L, op=dist.ReduceOp.SUM)
-                            L.div_(world_size)
-                        if _is_active(R):
-                            dist.all_reduce(R, op=dist.ReduceOp.SUM)
-                            R.div_(world_size)
+                        for key in ("preconditioner1", "preconditioner2"):
+                            if _is_active(state[key]):
+                                dist.all_reduce(state[key], op=dist.ReduceOp.SUM)
+                                state[key].div_(world_size)
                 else:
                     A = (grad**2).sum()
                     state["preconditioner1"].mul_(shampoo_decay).add_(

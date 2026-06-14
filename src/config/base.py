@@ -114,6 +114,7 @@ def parse_args(base_parser, args, namespace):
             "dykaf_new",
             "kl_soap",
             "shampoo_dykaf",
+            "shampoo_ema",
         ],
     )
     parser.add_argument("--batch_size", default=50, type=int)
