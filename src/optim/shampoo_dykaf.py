@@ -41,7 +41,21 @@ def _inv_sqrt(M: torch.Tensor, damping: float, eps: float) -> torch.Tensor:
     used here, not an element-wise ``sqrt`` of the matrix inverse.
     """
     M = 0.5 * (M + M.transpose(-1, -2))  # symmetrize away numerical asymmetry
-    eigvals, eigvecs = torch.linalg.eigh(M)
+    n = M.size(0)
+    try:
+        eigvals, eigvecs = torch.linalg.eigh(
+            M + 1e-9 * torch.eye(n, device=M.device, dtype=M.dtype)
+        )
+    except Exception:
+        # eigh can fail to converge on ill-conditioned / repeated-eigenvalue
+        # matrices (e.g. kron-init proj_split factors); retry in float64 with
+        # a larger jitter, as the original DyKAF/SOAP code does.
+        Md = M.to(torch.float64) + 1e-7 * torch.eye(
+            n, device=M.device, dtype=torch.float64
+        )
+        eigvals, eigvecs = torch.linalg.eigh(Md)
+        eigvals = eigvals.to(M.dtype)
+        eigvecs = eigvecs.to(M.dtype)
     eigvals = eigvals.clamp_min(0)
     lam_max = eigvals.max().clamp_min(eps)
     # Normalize to unit max eigenvalue so the preconditioner's absolute scale

@@ -17,7 +17,7 @@ do
         --optimizer shampoo_ema \
         --dykaf_init kron \
         --shampoo_beta 0.999 \
-        --shampoo_damping 1e-2 \
+        --shampoo_damping 1e-3 \
         --precondition_frequency 10 \
         --max_precond_dim 10000 \
         --lr 1.5e-4 \
