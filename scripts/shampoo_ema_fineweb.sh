@@ -20,7 +20,7 @@ do
         --shampoo_damping 1e-2 \
         --precondition_frequency 10 \
         --max_precond_dim 10000 \
-        --lr 5e-4 \
+        --lr 1.5e-4 \
         --iterations $iterations \
         --n_embd 768 \
         --n_head 12 \
