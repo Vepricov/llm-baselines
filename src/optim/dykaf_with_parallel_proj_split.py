@@ -65,24 +65,35 @@ def init_precond(g, L, R, init="kron", max_precond_dim=10000):
     return L, R
 
 
-def proj_split(L, R, g, beta=0, init="kron", max_precond_dim=10000, eps=1e-3):
+def proj_split(
+    L,
+    R,
+    g,
+    beta=0,
+    init="kron",
+    max_precond_dim=10000,
+    eps=1e-3,
+    factors_initialized=False,
+):
     if L == [] or R == []:
         if L != []:
-            if torch.norm(L) == 0:
+            if not factors_initialized and torch.norm(L) == 0:
                 L = torch.eye(L.shape[0], device=g.device, dtype=g.dtype)
                 L /= torch.norm(L) * eps
             L_new = L + g @ g.T
         else:
             L_new = []
         if R != []:
-            if torch.norm(R) == 0:
+            if not factors_initialized and torch.norm(R) == 0:
                 R = torch.eye(R.shape[0], device=g.device, dtype=g.dtype)
                 R /= torch.norm(R) * eps
             R_new = R + g.T @ g
         else:
             R_new = []
         return L_new, R_new
-    if (L != [] and torch.norm(L) == 0) or (R != [] and torch.norm(R) == 0):
+    if not factors_initialized and (
+        (L != [] and torch.norm(L) == 0) or (R != [] and torch.norm(R) == 0)
+    ):
         L, R = init_precond(g, L, R, init, max_precond_dim)
     if beta is not None:
         if len(L) != 0:
@@ -91,21 +102,16 @@ def proj_split(L, R, g, beta=0, init="kron", max_precond_dim=10000, eps=1e-3):
             R *= beta**0.5
         if beta != 1:
             g *= (1 - beta) ** 0.5
-    left_factor_norm = torch.linalg.norm(L) if len(L) != 0 else 1.0
     right_factor_norm = torch.linalg.norm(R) if len(R) != 0 else 1.0
 
-    norm_product = left_factor_norm * right_factor_norm
-    L = L / left_factor_norm if len(L) != 0 else L
     R = R / right_factor_norm if len(R) != 0 else R
 
-    K1, L1 = torch.tensor([1.0], device=g.device), torch.tensor([1.0], device=g.device)
-    grg = None
     if len(L) != 0 and len(R) != 0:
         grg = g @ R @ g.T
     else:
         grg = g @ g.T
 
-    K1 = L * norm_product + grg
+    K1 = L * right_factor_norm + grg
 
     K_norm = torch.norm(K1)
 
@@ -113,19 +119,19 @@ def proj_split(L, R, g, beta=0, init="kron", max_precond_dim=10000, eps=1e-3):
     S1 = K_norm - torch.sum(U1 * grg)
 
     if len(L) != 0 and len(R) != 0:
-        grg = g.T @ L @ g
+        grg = g.T @ U1 @ g
     else:
         grg = g.T @ g
 
-    L1 = R * S1 + grg
-    S2 = torch.norm(L1)
-    V1 = L1 / S2
+    R_hat = R * S1 + grg
+    S2 = torch.norm(R_hat)
     if len(L) != 0 and len(R) != 0:
-        return U1 * (S2**0.5), V1 * (S2**0.5)
+        scale = torch.sqrt(S2)
+        return U1 * scale, R_hat / scale
     elif len(L) != 0:
         return U1 * (S2), []
     else:
-        return [], V1 * (S2)
+        return [], R_hat
 
 
 class DyKAF(torch.optim.Optimizer):
@@ -614,6 +620,7 @@ class DyKAF(torch.optim.Optimizer):
                 )
         elif grad.dim() == 2:
             # Add projector splitting procedure. Change init parameter to start with different initialization
+            factors_initialized = state.get("dykaf_factors_initialized", False)
             L, R = proj_split(
                 state["GG"][0],
                 state["GG"][1],
@@ -621,9 +628,11 @@ class DyKAF(torch.optim.Optimizer):
                 beta=state["shampoo_beta"],
                 init=init,
                 max_precond_dim=max_precond_dim,
+                factors_initialized=factors_initialized,
             )
             state["GG"][0] = L
             state["GG"][1] = R
+            state["dykaf_factors_initialized"] = True
         else:
             if merge_dims:
                 new_grad = self.merge_dims(grad, max_precond_dim)

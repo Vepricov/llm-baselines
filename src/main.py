@@ -47,8 +47,7 @@ from optim.sign import Signum
 from optim.soap import SOAP
 from optim.sophia import SophiaG
 
-from optim.dykaf import DyKAF
-from optim.dykaf_with_parallel_proj_split import DyKAF as DyKAF_new
+from optim.dykaf_with_parallel_proj_split import DyKAF
 from optim.kl_opt import KLOpt
 from optim.shampoo_dykaf import DyKAFShampoo
 
@@ -169,7 +168,7 @@ def main(args, parser):
             report_fisher_diff=args.dykaf_report_fisher_diff,
         )
     elif args.opt == "dykaf_new":
-        opt = DyKAF_new(
+        opt = DyKAF(
             group_specs,
             lr=args.lr,
             betas=(args.beta1, args.beta2),
