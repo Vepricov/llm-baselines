@@ -21,7 +21,7 @@ PARTITION="${PARTITION:-HGX}"
 
 if [ -d "$TASK" ]; then
     echo "== продолжение свипа $JOB_NAME"
-    if squeue -h -n "$JOB_NAME" 2>/dev/null | grep -q .; then
+    if squeue -h -n "$JOB_NAME" -t PENDING,RUNNING 2>/dev/null | grep -q .; then
         echo "error: задачи свипа ещё в очереди (squeue -n $JOB_NAME), сначала дождись или scancel"
         exit 2
     fi

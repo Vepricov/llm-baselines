@@ -52,10 +52,8 @@ if scp -q -r "$HOST:$REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/results/." "$RU
     echo "готово: $RUN_DIR"
     ls -la "$RUN_DIR"
     if [ -f "$RUN_DIR/submitted.txt" ]; then
-        echo "свип в очереди, сводка в любой момент:"
-        echo "  curl -sL https://raw.githubusercontent.com/$REPO/$BRANCH/sber/collect.sh | bash -s -- ${EXP}_${RUN_ID}"
-        echo "продолжить после падения или лимита времени:"
-        echo "  curl -sL https://raw.githubusercontent.com/$REPO/$BRANCH/sber/run.sh | RESUME_RUN=$RUN_ID bash -s -- $EXP"
+        echo "свип в очереди: ${EXP}_${RUN_ID}"
+        echo "сводка: ~/tga status    продолжить после падения: ~/tga resume"
     fi
 else
     echo "результатов нет; лог на кластере: $REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/"
