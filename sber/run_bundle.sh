@@ -17,7 +17,7 @@
 set -euo pipefail
 
 # Чистим прошлые артефакты, чтобы не притащить устаревшие metrics/plot.
-rm -f ~/report_latest.txt ~/metrics_latest.csv ~/training_curve_latest.png ~/training_curve_latest.svg
+rm -f "$HOME/report_latest.txt" "$HOME/metrics_latest.csv" "$HOME/training_curve_latest.png" "$HOME/training_curve_latest.svg"
 
 
 WATCH=0
@@ -114,20 +114,20 @@ fi
 
 # Кладём в домашку под фиксированными именами, чтобы runner.sh просто их
 # забирал (без glob'ов и ошибок "not a directory").
-cp "$REPORT" ~/report_latest.txt
-echo "report: ~/report_latest.txt"
+cp "$REPORT" "$HOME/report_latest.txt"
+echo "report: "$HOME/report_latest.txt""
 
 if [ -f metrics.csv ]; then
-    cp metrics.csv ~/metrics_latest.csv
-    echo "metrics: ~/metrics_latest.csv"
+    cp metrics.csv "$HOME/metrics_latest.csv"
+    echo "metrics: "$HOME/metrics_latest.csv""
 fi
 if [ -f training_curve.png ]; then
-    cp training_curve.png ~/training_curve_latest.png
-    echo "plot: ~/training_curve_latest.png"
+    cp training_curve.png "$HOME/training_curve_latest.png"
+    echo "plot: "$HOME/training_curve_latest.png""
 fi
 if [ -f training_curve.svg ]; then
-    cp training_curve.svg ~/training_curve_latest.svg
-    echo "plot: ~/training_curve_latest.svg"
+    cp training_curve.svg "$HOME/training_curve_latest.svg"
+    echo "plot: "$HOME/training_curve_latest.svg""
 fi
 
 echo "take ONLY these files back through the approved channel."
