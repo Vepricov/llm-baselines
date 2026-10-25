@@ -18,6 +18,10 @@ if [ -z "$NAME" ]; then
     NAME="$(ssh -n "$HOST" 'cd $HOME/gigalearn/runs && for d in $(ls -td */); do [ -f "$d/sweep.txt" ] && { echo "${d%/}"; break; }; done')"
     [ -n "$NAME" ] || { echo "error: на кластере нет ни одного свипа"; exit 2; }
 fi
+# a cut or shortened name is completed by prefix, if that is unambiguous
+NAME="$(ssh -n "$HOST" "cd \$HOME/gigalearn/runs && m=\$(ls -d '$NAME'* 2>/dev/null); \
+    [ \$(echo \"\$m\" | grep -c .) -eq 1 ] && echo \"\$m\" || echo '$NAME'")"
+NAME="${NAME%/}"
 echo "== свип: $NAME"
 
 ssh -n "$HOST" "cd \$HOME/gigalearn/runs/$NAME && python3 sber/sweep_summary.py . > /dev/null && \
