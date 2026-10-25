@@ -24,6 +24,10 @@ if [ -d "$TASK" ]; then
     fi
     # shellcheck disable=SC1091
     . "$TASK/sweep.env"
+    # the code is refreshed, so a fix pushed after a failure reaches the remaining lines;
+    # sweep.txt and the finished runs stay as they were
+    rm -rf "$TASK/src" "$TASK/sber"
+    cp -r "$REPO/src" "$REPO/sber" "$TASK/"
 else
     export DATASET="${DATASET:-shakespeare-char}"
     export SMOKE="${SMOKE:-0}"
@@ -70,7 +74,7 @@ $(cat "$TASK/idea.md" 2>/dev/null || echo '(нет idea.md)')
 ## Параметры
 - dataset: ${DATASET}, smoke: ${SMOKE}
 - строк: ${N}, узлов (задач массива): ${TASKS}, одновременно не больше ${MAX_NODES}
-- ветка кода: ${BRANCH:-?}, sha256 архива: ${CODE_SHA:-?}
+- ветка кода: ${BRANCH:-?}, sha256 архива: ${CODE_SHA:-?} (все попытки: code_history.txt)
 - образ: $(grep -m1 'container-image' "$TASK/train_slurm.sh" | sed 's/.*="//; s/".*//')
 - каждая строка свипа: sweep.txt, своя папка runs/<имя>/, чекпоинты exps/<имя>/
 
@@ -78,6 +82,8 @@ $(cat "$TASK/idea.md" 2>/dev/null || echo '(нет idea.md)')
 Тот же запуск с RESUME_RUN=${RUN_ID}: готовые строки пропускаются, прерванные
 продолжаются с последнего чекпоинта.
 README
+
+echo "$(date '+%d-%m-%Y %H:%M:%S') branch=${BRANCH:-?} sha256=${CODE_SHA:-?}" >> "$TASK/code_history.txt"
 
 cd "$TASK"
 OUT="$(sbatch --job-name="$JOB_NAME" --array="0-$((TASKS - 1))%${MAX_NODES}" train_slurm.sh)"
