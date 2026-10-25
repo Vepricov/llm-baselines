@@ -6,6 +6,7 @@
 set -uo pipefail
 
 IDX="${1:?line index}"
+PY="${PY:-python}"
 cd "${TASK_DIR:?}"
 SWEEP="$TASK_DIR/sweep.txt"
 
@@ -39,7 +40,7 @@ PLACE="--datasets_dir $DATA_DIR --device ${DEVICE:-cuda:0}"
 echo "$(date '+%d-%m-%Y %H:%M:%S') host=$(hostname) gpu=${CUDA_VISIBLE_DEVICES:-} args=$ARGS" >> "$RUN/attempts.txt"
 echo "$NAME: training"
 # shellcheck disable=SC2086
-python src/main.py $ARGS $PLACE \
+"$PY" src/main.py $ARGS $PLACE \
     --experiment_name "$NAME" --results_base_folder "$TASK_DIR/exps" \
     --lab_run_work token-grad-averaging --lab_run_objective "$OBJECTIVE" \
     >> "$RUN/train.log" 2>&1
@@ -52,14 +53,14 @@ if [ "$RC" -eq 0 ] && [ "$POST" = "measure" ]; then
         OUT="$RUN/tgc_$(printf '%06d' "$(basename "$CKPT")").pt"
         [ -f "$OUT" ] && continue
         # shellcheck disable=SC2086
-        python src/token_grad_cov.py $ARGS $PLACE --ckpt_path "$CKPT" \
+        "$PY" src/token_grad_cov.py $ARGS $PLACE --ckpt_path "$CKPT" \
             --out_path "$OUT" --n_seqs "$NSEQ" >> "$RUN/measure.log" 2>&1 || { RC=$?; break; }
     done
     if [ "$RC" -eq 0 ]; then
         PLOT=""
-        python -c "import matplotlib" 2>/dev/null && PLOT="--plot $RUN/tgc_report.png"
+        "$PY" -c "import matplotlib" 2>/dev/null && PLOT="--plot $RUN/tgc_report.png"
         # shellcheck disable=SC2086
-        python src/analysis/token_grad_cov_report.py "$RUN"/tgc_*.pt \
+        "$PY" src/analysis/token_grad_cov_report.py "$RUN"/tgc_*.pt \
             --out_json "$RUN/tgc_report.json" --save_weights "$RUN/gls_weights.npy" $PLOT \
             >> "$RUN/measure.log" 2>&1 || RC=$?
     fi
