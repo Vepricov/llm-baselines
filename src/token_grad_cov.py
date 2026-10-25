@@ -39,7 +39,8 @@ def get_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--config_format", default="base")
     parser.add_argument("--ckpt_path", default=None, type=str)
-    parser.add_argument("--out_path", required=True, type=str)
+    # not required=True: config.parse_args parses this parser a second time
+    parser.add_argument("--out_path", default=None, type=str)
     parser.add_argument("--n_seqs", default=32, type=int)
     parser.add_argument("--sketch_dim", default=8192, type=int)
     parser.add_argument("--sketch_seed", default=0, type=int)
@@ -103,6 +104,7 @@ def per_token_grads(model, params, x, y, sketch, type_ctx):
 
 
 def main(args):
+    assert args.out_path is not None, "--out_path is required"
     torch.manual_seed(args.seed)
     if "cuda" in args.device:
         torch.cuda.set_device(torch.device(args.device))
