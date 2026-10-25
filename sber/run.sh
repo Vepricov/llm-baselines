@@ -1,30 +1,29 @@
 #!/bin/bash
-# sber/run.sh - одна команда на рабочей машине: код с GitHub -> кластер -> запуск -> результаты обратно.
+# sber/run.sh - одна команда на рабочей машине:
+#   код с GitHub -> кластер -> запуск -> результаты обратно в отдельную папку.
 #
 # Использование:
-#   GIGALEARN_HOST=user@cluster-host bash run.sh <experiment>
-#   GIGALEARN_HOST=user@cluster-host bash run.sh <experiment> <host>
+#   bash run.sh <experiment> [host]
+#   DATASET=shakespeare-char ITERATIONS=200 bash run.sh mlmc_pretrain
 #
-# Конфиг (необязательно): $HOME/gigalearn/config.env с переменными
+# Конфиг (один раз): $HOME/gigalearn/config.env
 #   GIGALEARN_HOST=user@cluster-host
 #   GIGALEARN_IMAGE=/path/to/image.sqsh
 #
-# Переменные:
-#   GIGALEARN_REPO   (по умолчанию Vepricov/llm-baselines)
-#   GIGALEARN_BRANCH (по умолчанию sber)
-#   GIGALEARN_HOME   (по умолчанию $HOME/gigalearn)
+# Переменные: GIGALEARN_REPO, GIGALEARN_BRANCH, GIGALEARN_HOME,
+#             DATASET, OPTIMIZER, LR, ITERATIONS, WARMUP, BATCH, SEQ, N_EMBD, N_HEAD, N_LAYER
 set -euo pipefail
 
 EXP="${1:?usage: run.sh <experiment> [host]}"
 [ -f "$HOME/gigalearn/config.env" ] && . "$HOME/gigalearn/config.env"
 HOST="${2:-${GIGALEARN_HOST:-}}"
-[ -n "$HOST" ] || { echo "error: задай GIGALEARN_HOST (user@host) или положи его в \$HOME/gigalearn/config.env"; exit 2; }
+[ -n "$HOST" ] || { echo "error: задай GIGALEARN_HOST или положи его в \$HOME/gigalearn/config.env"; exit 2; }
 
 REPO="${GIGALEARN_REPO:-Vepricov/llm-baselines}"
 BRANCH="${GIGALEARN_BRANCH:-sber}"
 BASE="${GIGALEARN_HOME:-$HOME/gigalearn}"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN_DIR="$BASE/runs/${EXP}_${STAMP}"
+RUN_ID="$(date +%d-%m-%Y_%H-%M-%S)"
+RUN_DIR="$BASE/runs/${EXP}_${RUN_ID}"
 mkdir -p "$RUN_DIR"
 
 TMP="$(mktemp -d)"
@@ -32,15 +31,23 @@ trap 'rm -rf "$TMP"' EXIT
 
 echo "== 1/3 код: $REPO@$BRANCH"
 curl -fsSL "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" -o "$TMP/src.tar.gz"
-echo "   $(du -h "$TMP/src.tar.gz" | cut -f1)"
+CODE_SHA="$(shasum -a 256 "$TMP/src.tar.gz" | cut -c1-12)"
+echo "   $(du -h "$TMP/src.tar.gz" | cut -f1), sha256: $CODE_SHA"
 
-echo "== 2/3 кластер: $HOST"
-ssh "$HOST" "set -e; mkdir -p ~/gigalearn/repo; tar xzf - -C ~/gigalearn/repo --strip-components=1; GIGALEARN_IMAGE='${GIGALEARN_IMAGE:-}' bash ~/gigalearn/repo/sber/cluster_run.sh '$EXP' '$STAMP'" < "$TMP/src.tar.gz"
+# Переменные запуска едут на кластер явно: ssh сам их не пробрасывает.
+REMOTE_ENV="DATASET='${DATASET:-}' OPTIMIZER='${OPTIMIZER:-}' LR='${LR:-}' \
+ITERATIONS='${ITERATIONS:-}' WARMUP='${WARMUP:-}' BATCH='${BATCH:-}' SEQ='${SEQ:-}' \
+N_EMBD='${N_EMBD:-}' N_HEAD='${N_HEAD:-}' N_LAYER='${N_LAYER:-}' \
+GIGALEARN_IMAGE='${GIGALEARN_IMAGE:-}' CODE_SHA='$CODE_SHA' BRANCH='$BRANCH'"
+
+REMOTE_HOME="$(ssh "$HOST" 'printf %s "$HOME"')"
+echo "== 2/3 кластер: $HOST ($REMOTE_HOME/gigalearn)"
+ssh "$HOST" "set -e; mkdir -p \$HOME/gigalearn/repo; tar xzf - -C \$HOME/gigalearn/repo --strip-components=1; env $REMOTE_ENV bash \$HOME/gigalearn/repo/sber/cluster_run.sh '$EXP' '$RUN_ID'" < "$TMP/src.tar.gz"
 
 echo "== 3/3 результаты"
-if scp -q -r "$HOST:~/gigalearn/runs/${EXP}_${STAMP}/results" "$RUN_DIR/" 2>/dev/null; then
+if scp -q -r "$HOST:$REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/results/." "$RUN_DIR/" 2>/dev/null; then
     echo "готово: $RUN_DIR"
-    ls -la "$RUN_DIR/results" 2>/dev/null | head -12
+    ls -la "$RUN_DIR"
 else
-    echo "результатов нет, смотри лог на кластере: ~/gigalearn/runs/${EXP}_${STAMP}/"
+    echo "результатов нет; лог на кластере: $REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/"
 fi
