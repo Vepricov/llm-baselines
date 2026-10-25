@@ -22,6 +22,7 @@ except ImportError:  # офлайн-кластер: wandb не установл�
     wandb = _DummyWandb()
 
 # from logger.logger import DynamicsLogger
+from .token_agg import TokenAggregator
 from .utils import (eval, get_batch, load_checkpoint, load_worker_state,
                     save_checkpoint, save_worker_state)
 
@@ -84,6 +85,8 @@ def train(
     train_reader.set_step(substep)
     stats = {"train_loss": [], "val_loss": [], "val_pp": [], "val_acc": []}
     grad_norms = []
+    token_agg = TokenAggregator(cfg) if cfg.token_agg != "mean" else None
+    tokens_forwarded = 0
     model.train()
 
     while curr_iter <= cfg.iterations:
@@ -132,13 +135,20 @@ def train(
         t_start = time.perf_counter_ns()
         for microstep_idx in range(cfg.acc_steps):  # gradient accumulation
             x, y = get_batch(train_reader, device=cfg.device)
+            if token_agg is not None:
+                x, y, w = token_agg.truncate(x, y, token_agg.weights(x))
+            tokens_forwarded += x.numel()
             with type_ctx:
                 with distributed_backend.get_context_for_microstep_forward(
                     model=model,
                     microstep_idx=microstep_idx,
                     gradient_accumulation_steps=cfg.acc_steps,
                 ):
-                    outputs = model(x, targets=y)
+                    if token_agg is None:
+                        outputs = model(x, targets=y)
+                    else:
+                        outputs = model(x, targets=y, get_logits=True)
+                        outputs["loss"] = token_agg.loss(outputs["logits"], y, w)
 
             loss = outputs["loss"] / cfg.acc_steps
             loss.backward()
@@ -210,6 +220,7 @@ def train(
                 wandb.log(
                     {
                         "tokens": tokens,
+                        "tokens_forwarded": tokens_forwarded,
                         "iter": curr_iter,
                         "train/loss": train_loss,
                         "train/perplexity": 2.71828**train_loss,

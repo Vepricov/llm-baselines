@@ -164,6 +164,13 @@ def parse_args(base_parser, args, namespace):
     parser.add_argument("--adafactor_decay_rate", default=-0.8, type=float)
     parser.add_argument("--lamb_use_bias_correction", default=False, type=bool)
 
+    # Aggregation of per-token losses within a sequence (token-grad-averaging)
+    parser.add_argument(
+        "--token_agg", default="mean", choices=["mean", "mlmc", "weights"]
+    )
+    parser.add_argument("--mlmc_base_tokens", default=1, type=int)
+    parser.add_argument("--token_weights_path", default=None, type=str)
+
     # Dataset params
     parser.add_argument("--datasets_dir", type=str, default="./src/data/datasets/")
     parser.add_argument(
