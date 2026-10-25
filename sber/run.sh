@@ -20,9 +20,10 @@ HOST="${2:-${GIGALEARN_HOST:-}}"
 [ -n "$HOST" ] || { echo "error: задай GIGALEARN_HOST или положи его в \$HOME/gigalearn/config.env"; exit 2; }
 
 REPO="${GIGALEARN_REPO:-Vepricov/llm-baselines}"
-BRANCH="${GIGALEARN_BRANCH:-sber}"
+BRANCH="${GIGALEARN_BRANCH:-tga}"
 BASE="${GIGALEARN_HOME:-$HOME/gigalearn}"
-RUN_ID="$(date +%d-%m-%Y_%H-%M-%S)"
+# RESUME_RUN=<run id> continues an existing sweep instead of starting a new one
+RUN_ID="${RESUME_RUN:-$(date +%d-%m-%Y_%H-%M-%S)}"
 RUN_DIR="$BASE/runs/${EXP}_${RUN_ID}"
 mkdir -p "$RUN_DIR"
 
@@ -38,9 +39,10 @@ echo "   $(du -h "$TMP/src.tar.gz" | cut -f1), sha256: $CODE_SHA"
 REMOTE_ENV="DATASET='${DATASET:-}' OPTIMIZER='${OPTIMIZER:-}' LR='${LR:-}' \
 ITERATIONS='${ITERATIONS:-}' WARMUP='${WARMUP:-}' BATCH='${BATCH:-}' SEQ='${SEQ:-}' \
 N_EMBD='${N_EMBD:-}' N_HEAD='${N_HEAD:-}' N_LAYER='${N_LAYER:-}' \
+SMOKE='${SMOKE:-}' MAX_NODES='${MAX_NODES:-}' \
 GIGALEARN_IMAGE='${GIGALEARN_IMAGE:-}' CODE_SHA='$CODE_SHA' BRANCH='$BRANCH'"
 
-REMOTE_HOME="$(ssh "$HOST" 'printf %s "$HOME"')"
+REMOTE_HOME="$(ssh -n "$HOST" 'printf %s "$HOME"')"
 echo "== 2/3 кластер: $HOST ($REMOTE_HOME/gigalearn)"
 ssh "$HOST" "set -e; mkdir -p \$HOME/gigalearn/repo; tar xzf - -C \$HOME/gigalearn/repo --strip-components=1; env $REMOTE_ENV bash \$HOME/gigalearn/repo/sber/cluster_run.sh '$EXP' '$RUN_ID'" < "$TMP/src.tar.gz"
 
@@ -48,6 +50,12 @@ echo "== 3/3 результаты"
 if scp -q -r "$HOST:$REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/results/." "$RUN_DIR/" 2>/dev/null; then
     echo "готово: $RUN_DIR"
     ls -la "$RUN_DIR"
+    if [ -f "$RUN_DIR/submitted.txt" ]; then
+        echo "свип в очереди, сводка в любой момент:"
+        echo "  curl -sL https://raw.githubusercontent.com/$REPO/$BRANCH/sber/collect.sh | bash -s -- ${EXP}_${RUN_ID}"
+        echo "продолжить после падения или лимита времени:"
+        echo "  curl -sL https://raw.githubusercontent.com/$REPO/$BRANCH/sber/run.sh | RESUME_RUN=$RUN_ID bash -s -- $EXP"
+    fi
 else
     echo "результатов нет; лог на кластере: $REMOTE_HOME/gigalearn/runs/${EXP}_${RUN_ID}/"
 fi

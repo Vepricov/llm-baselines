@@ -18,6 +18,7 @@ def parse_args(base_parser, args, namespace):
     parser.add_argument("--eval_interval", default=200, type=int)
     parser.add_argument("--full_eval_at", nargs="+", type=int)
     parser.add_argument("--eval_batches", default=32, type=int)
+    parser.add_argument("--eval_batch_size", default=None, type=int)
     parser.add_argument("--device", default="cuda:0", type=str)
     parser.add_argument(
         "--distributed_backend",
@@ -170,6 +171,10 @@ def parse_args(base_parser, args, namespace):
     )
     parser.add_argument("--mlmc_base_tokens", default=1, type=int)
     parser.add_argument("--token_weights_path", default=None, type=str)
+
+    # Lab run recorder (src/lab_run.py); off unless a work slug is given
+    parser.add_argument("--lab_run_work", default=None, type=str)
+    parser.add_argument("--lab_run_objective", default="", type=str)
 
     # Dataset params
     parser.add_argument("--datasets_dir", type=str, default="./src/data/datasets/")

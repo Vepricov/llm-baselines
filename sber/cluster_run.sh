@@ -11,6 +11,11 @@ SRC="$ROOT/repo/sber"
 TASK="$ROOT/runs/${EXP}_${RUN_ID}"
 BASE="$ROOT/base"
 
+# experiments with sweep_<dataset>.txt are Slurm arrays, see sber/cluster_sweep.sh
+if ls "$SRC/experiments/$EXP"/sweep_*.txt >/dev/null 2>&1; then
+    exec bash "$SRC/cluster_sweep.sh" "$EXP" "$RUN_ID"
+fi
+
 mkdir -p "$TASK/logs" "$TASK/results"
 
 [ -f "$SRC/experiments/$EXP/train_slurm.sh" ] || {
@@ -20,6 +25,8 @@ cp "$SRC/experiments/$EXP/"*.sh "$TASK/"
 cp "$SRC/experiments/$EXP/README.md" "$TASK/experiment.md" 2>/dev/null || true
 cp "$SRC/experiments/$EXP/idea.md" "$TASK/idea.md" 2>/dev/null || true
 cp "$SRC/plot_metrics.py" "$SRC/run_bundle.sh" "$TASK/" 2>/dev/null || true
+# slurm_startup.sh runs src/main.py relative to the run dir, so the code goes there too
+cp -r "$ROOT/repo/src" "$TASK/"
 
 # Постоянные тяжёлые вещи живут в base и в прогон не копируются.
 for d in pylibs tiktoken_cache data; do

@@ -27,6 +27,7 @@ except ImportError:  # офлайн-кластер: wandb не установл�
         def Table(*args, **kwargs): return None
     wandb = _DummyWandb()
 from data.utils import DataReader, get_dataset
+from lab_run import LabRun
 from models.utils import get_model
 from optim.adafactor import Adafactor
 from optim.adammini import Adam_mini
@@ -85,7 +86,7 @@ def main(args, parser):
         torch.cuda.set_device(torch.device(args.device))
     # torch.use_deterministic_algorithms(True)  # CUBLAS_WORKSPACE_CONFIG=:4096:8
 
-    exp_name = get_exp_name(args, parser, distributed_backend)
+    exp_name = args.experiment_name or get_exp_name(args, parser, distributed_backend)
     exp_dir = Path(args.results_base_folder) / exp_name
     if distributed_backend.is_master_process() and args.wandb:
         wandb.init(
@@ -496,15 +497,36 @@ def main(args, parser):
     elif distributed_backend.is_master_process():
         exp_dir.mkdir(parents=True, exist_ok=True)
 
-    stats = train(
-        model=model,
-        opt=opt,
-        datareaders=datareaders,
-        scheduler=scheduler,
-        exp_dir=exp_dir,
-        distributed_backend=distributed_backend,
-        cfg=args,
-    )
+    lab_run = None
+    if args.lab_run_work and distributed_backend.is_master_process():
+        # the run page is written by the code itself (lab_run.py, lab rule run-is-written-by-code)
+        lab_run = LabRun(
+            work=args.lab_run_work,
+            name=exp_name,
+            settings=vars(args),
+            objective=args.lab_run_objective,
+            command=" ".join(sys.argv),
+            path=str(exp_dir / "lab_run.json"),
+        )
+        lab_run.where(str(exp_dir))
+
+    try:
+        stats = train(
+            model=model,
+            opt=opt,
+            datareaders=datareaders,
+            scheduler=scheduler,
+            exp_dir=exp_dir,
+            distributed_backend=distributed_backend,
+            cfg=args,
+            lab_run=lab_run,
+        )
+    except BaseException as e:
+        if lab_run is not None:
+            lab_run.finish("failed", reason=f"{type(e).__name__}: {e}"[:300])
+        raise
+    if lab_run is not None:
+        lab_run.finish("completed")
 
     stats["args"] = vars(args)
     if distributed_backend.is_master_process():
@@ -526,7 +548,7 @@ def get_data_readers(args, verbose=True):
     )
     val_reader = DataReader(
         data_src=data_srcs["val"],
-        batch_size=args.batch_size,
+        batch_size=args.eval_batch_size or args.batch_size,
         sequence_length=args.sequence_length,
         seed=args.data_seed,
         with_replacement=False,

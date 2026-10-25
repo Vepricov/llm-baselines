@@ -2,7 +2,6 @@ import os
 from string import ascii_letters, digits, punctuation
 
 import numpy as np
-import requests
 
 _char_decode = dict(
     enumerate(sorted(set(ascii_letters + digits + punctuation + " \n")))
@@ -23,6 +22,8 @@ def get_shakespeare_data(datasets_dir):
 
     # if path is not even there, download all data
     if not os.path.exists(DATA_PATH):
+        import requests  # only needed online; the offline cluster ships raw.txt
+
         print("Downloading raw Shakespeare texts")
         url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
         os.makedirs(DATA_PATH, exist_ok=True)

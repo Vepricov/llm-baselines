@@ -33,9 +33,10 @@ torchrun \
     --rdzv-endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
     src/main.py \
     --run_prefix mlmc_pretrain \
+    --distributed_backend nccl \
     --model llama \
     --dataset "$DATASET" \
-    --optimizer "$OPTIMIZER" \
+    --opt "$OPTIMIZER" \
     --lr "$LR" \
     --iterations "$ITERATIONS" \
     --warmup_steps "$WARMUP" \
@@ -43,8 +44,7 @@ torchrun \
     --n_embd "$N_EMBD" --n_head "$N_HEAD" --n_layer "$N_LAYER" \
     --eval_interval 500 --latest_ckpt_interval 1000 --log_interval 20 \
     --datasets_dir "$TASK_DIR/data" \
-    --results_base_folder "$TASK_DIR/exps" \
-    --do_not_auto_resume
+    --results_base_folder "$TASK_DIR/exps"
 
 if [ "${SLURM_NODEID:-0}" = "0" ]; then
     python3 "$TASK_DIR/plot_metrics.py" "${LOG_FILE:-$TASK_DIR/logs/log_${SLURM_JOB_ID}.log}" "$TASK_DIR" \

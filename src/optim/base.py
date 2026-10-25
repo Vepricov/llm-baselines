@@ -35,6 +35,7 @@ def train(
     exp_dir,
     distributed_backend,
     cfg,
+    lab_run=None,
 ):
     not_compiled_model = model
     if cfg.compile:
@@ -125,6 +126,7 @@ def train(
                 cfg,
                 opt,
                 full_eval=(curr_iter in cfg.full_eval_at),
+                lab_run=lab_run,
             )
 
         if curr_iter == cfg.iterations:
@@ -136,7 +138,17 @@ def train(
         for microstep_idx in range(cfg.acc_steps):  # gradient accumulation
             x, y = get_batch(train_reader, device=cfg.device)
             if token_agg is not None:
-                x, y, w = token_agg.truncate(x, y, token_agg.weights(x))
+                # one forward/backward per prefix length, see optim/token_agg.py
+                loss = 0.0
+                for xg, yg, wg in token_agg.split(x, y, token_agg.weights(x)):
+                    tokens_forwarded += xg.numel()
+                    with type_ctx:
+                        logits = model(xg, targets=yg, get_logits=True)["logits"]
+                        group_loss = token_agg.loss(logits, yg, wg, x.shape[0])
+                    (group_loss / cfg.acc_steps).backward()
+                    loss = loss + group_loss.detach() / cfg.acc_steps
+                substep += 1
+                continue
             tokens_forwarded += x.numel()
             with type_ctx:
                 with distributed_backend.get_context_for_microstep_forward(
@@ -144,11 +156,7 @@ def train(
                     microstep_idx=microstep_idx,
                     gradient_accumulation_steps=cfg.acc_steps,
                 ):
-                    if token_agg is None:
-                        outputs = model(x, targets=y)
-                    else:
-                        outputs = model(x, targets=y, get_logits=True)
-                        outputs["loss"] = token_agg.loss(outputs["logits"], y, w)
+                    outputs = model(x, targets=y)
 
             loss = outputs["loss"] / cfg.acc_steps
             loss.backward()
@@ -213,8 +221,11 @@ def train(
             print(
                 f"Train: Iter={curr_iter} ({epoch:0.3f} epochs) "
                 f"train_loss={train_loss:.3f} iter_dt={dt:.2e}s "
-                f"lr={current_lrs[0]:.2e}"
+                f"lr={current_lrs[0]:.2e} tokens_forwarded={tokens_forwarded}"
             )
+            if lab_run is not None:
+                lab_run.metric("train/loss", train_loss, step=curr_iter)
+                lab_run.metric("tokens_forwarded", tokens_forwarded, step=curr_iter)
 
             if cfg.wandb:
                 wandb.log(
@@ -249,6 +260,7 @@ def eval_and_log(
     cfg,
     opt,
     full_eval=False,
+    lab_run=None,
 ):
     if not distributed_backend.is_master_process():
         # Only evaluate and log on master rank
@@ -281,6 +293,10 @@ def eval_and_log(
         f"val_pp={val_perplexity:.3f} "
         f"val_acc={val_acc:3f}"
     )
+    if lab_run is not None:
+        final = curr_iter == cfg.iterations or full_eval
+        lab_run.metric("val/loss", val_loss, step=curr_iter, final=final)
+        lab_run.metric("val/acc", val_acc, step=curr_iter, final=final)
 
     if cfg.wandb:
         if curr_iter == cfg.iterations or full_eval:
