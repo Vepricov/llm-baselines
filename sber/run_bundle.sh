@@ -115,19 +115,19 @@ fi
 # Кладём в домашку под фиксированными именами, чтобы runner.sh просто их
 # забирал (без glob'ов и ошибок "not a directory").
 cp "$REPORT" "$HOME/report_latest.txt"
-echo "report: "$HOME/report_latest.txt""
+echo "report: $HOME/report_latest.txt"
 
 if [ -f metrics.csv ]; then
     cp metrics.csv "$HOME/metrics_latest.csv"
-    echo "metrics: "$HOME/metrics_latest.csv""
+    echo "metrics: $HOME/metrics_latest.csv"
 fi
 if [ -f training_curve.png ]; then
     cp training_curve.png "$HOME/training_curve_latest.png"
-    echo "plot: "$HOME/training_curve_latest.png""
+    echo "plot: $HOME/training_curve_latest.png"
 fi
 if [ -f training_curve.svg ]; then
     cp training_curve.svg "$HOME/training_curve_latest.svg"
-    echo "plot: "$HOME/training_curve_latest.svg""
+    echo "plot: $HOME/training_curve_latest.svg"
 fi
 
 echo "take ONLY these files back through the approved channel."
