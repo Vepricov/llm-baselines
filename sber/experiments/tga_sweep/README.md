@@ -5,22 +5,13 @@
 
 ## Запуск (рабочая машина)
 
-    # дым: все строки по 40 шагов, минуты
-    curl -sL https://raw.githubusercontent.com/Vepricov/llm-baselines/tga/sber/run.sh | SMOKE=1 bash -s -- tga_sweep
-    # настоящий свип
-    curl -sL https://raw.githubusercontent.com/Vepricov/llm-baselines/tga/sber/run.sh | bash -s -- tga_sweep
+Команды `giga` (sber/giga.sh), проект `tga`:
 
-`DATASET` выбирает файл свипа (по умолчанию shakespeare-char), `MAX_NODES` ограничивает
-число одновременно занятых узлов. Команда ставит массив и сразу возвращается.
+    giga smoke     дым: все строки по 40 шагов, минуты
+    giga start     настоящий свип
+    giga status    сводка
+    giga resume    продолжить: готовые строки пропускаются, прерванные идут с exps/<имя>/ckpts/latest
 
-## Сводка
-
-    curl -sL https://raw.githubusercontent.com/Vepricov/llm-baselines/tga/sber/collect.sh | bash
-
-Печатает summary.md и кладёт `~/gigalearn/runs/<свип>_summary.tar.gz`.
-
-## Продолжить
-
-    curl -sL .../run.sh | RESUME_RUN=<дата-время свипа> bash -s -- tga_sweep
-
-Готовые строки (runs/<имя>/DONE) пропускаются, прерванные продолжают с exps/<имя>/ckpts/latest.
+`DATASET` выбирает файл свипа (по умолчанию shakespeare-char), `GPUS_PER_NODE` (1 по умолчанию,
+8 = целые узлы), `PARTITION` (HGX), `TIME_LIMIT` (дым 30 минут), `MAX_NODES`. Пишутся перед командой:
+`PARTITION=H200 giga start`.

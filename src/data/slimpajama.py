@@ -5,7 +5,9 @@ import tiktoken
 from datasets import load_dataset
 from tqdm import tqdm
 
-tknzr = tiktoken.get_encoding("gpt2")
+def tknzr():
+    # loaded on first use, so importing this module works offline (the cluster has no network)
+    return tiktoken.get_encoding("gpt2")
 
 
 def get_slimpajama_data(datasets_dir, num_proc=40):
@@ -20,11 +22,11 @@ def get_slimpajama_data(datasets_dir, num_proc=40):
         split_dataset["val"] = split_dataset.pop("test")
 
         def process(example):
-            ids = tknzr.encode_ordinary(
+            ids = tknzr().encode_ordinary(
                 example["text"]
             )  # encode_ordinary ignores any special tokens
             ids.append(
-                tknzr.eot_token
+                tknzr().eot_token
             )  # add the end of text token, e.g. 50256 for gpt2 bpe
             out = {"ids": ids, "len": len(ids)}
             return out
@@ -76,11 +78,11 @@ def get_slimpajama_chunk1(datasets_dir, num_proc=40):
         split_dataset["val"] = split_dataset.pop("test")
 
         def process(example):
-            ids = tknzr.encode_ordinary(
+            ids = tknzr().encode_ordinary(
                 example["text"]
             )  # encode_ordinary ignores any special tokens
             ids.append(
-                tknzr.eot_token
+                tknzr().eot_token
             )  # add the end of text token, e.g. 50256 for gpt2 bpe
             out = {"ids": ids, "len": len(ids)}
             return out

@@ -7,8 +7,9 @@ EXP="${1:?experiment}"
 RUN_ID="${2:?run id}"
 
 ROOT="$HOME/gigalearn"
-SRC="$ROOT/repo/sber"
-TASK="$ROOT/runs/${EXP}_${RUN_ID}"
+PROJECT="${PROJECT:-${BRANCH:-sber}}"
+SRC="$ROOT/$PROJECT/repo/sber"
+TASK="$ROOT/$PROJECT/runs/${EXP}_${RUN_ID}"
 BASE="$ROOT/base"
 
 # experiments with sweep_<dataset>.txt are Slurm arrays, see sber/cluster_sweep.sh
@@ -26,7 +27,7 @@ cp "$SRC/experiments/$EXP/README.md" "$TASK/experiment.md" 2>/dev/null || true
 cp "$SRC/experiments/$EXP/idea.md" "$TASK/idea.md" 2>/dev/null || true
 cp "$SRC/plot_metrics.py" "$SRC/run_bundle.sh" "$TASK/" 2>/dev/null || true
 # slurm_startup.sh runs src/main.py relative to the run dir, so the code goes there too
-cp -r "$ROOT/repo/src" "$TASK/"
+cp -r "$ROOT/$PROJECT/repo/src" "$TASK/"
 
 # Постоянные тяжёлые вещи живут в base и в прогон не копируются.
 for d in pylibs tiktoken_cache data; do

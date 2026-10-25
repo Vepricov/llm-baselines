@@ -9,9 +9,10 @@ EXP="${1:?experiment}"
 RUN_ID="${2:?run id}"
 
 ROOT="$HOME/gigalearn"
-REPO="$ROOT/repo"
+PROJECT="${PROJECT:-${BRANCH:-sber}}"
+REPO="$ROOT/$PROJECT/repo"
 EXP_SRC="$REPO/sber/experiments/$EXP"
-TASK="$ROOT/runs/${EXP}_${RUN_ID}"
+TASK="$ROOT/$PROJECT/runs/${EXP}_${RUN_ID}"
 BASE="$ROOT/base"
 JOB_NAME="${EXP}_${RUN_ID}"
 # GPUs per array task: 8 = whole nodes, 1 = one job per line (gets through a busy queue
