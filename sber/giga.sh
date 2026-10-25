@@ -104,5 +104,5 @@ case "$CMD" in
         echo "  cd $BASE/tga"
         echo "  giga status"
         ;;
-    *)  echo "проект здесь: $PROJECT"; sed -n '6,19p' "$BASE/giga" 2>/dev/null || sed -n '6,19p' "$0"; exit 2 ;;
+    *)  echo "проект здесь: $PROJECT"; sed -n '7,19p' "$BASE/giga" 2>/dev/null || sed -n '7,19p' "$0"; exit 2 ;;
 esac

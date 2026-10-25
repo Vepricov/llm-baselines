@@ -5,7 +5,7 @@
 
 ## Запуск (рабочая машина)
 
-Команды `giga` (sber/giga.sh), проект `tga`:
+Команды `giga` (sber/giga.sh) из папки проекта `/Users/23360187/gigalearn/tga`:
 
     giga smoke     дым: все строки по 40 шагов, минуты
     giga start     настоящий свип
