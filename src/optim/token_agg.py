@@ -12,6 +12,10 @@ position weights w that sum to one per sequence:
            mean over the first base * 2^j tokens and M = T / base. In
            expectation the weights are uniform over the T positions, so the
            objective is the same as for the plain mean.
+- prefix_mean: control for mlmc. Same random prefix length per sequence, but
+           the plain mean over that prefix (biased towards early positions).
+           At equal forwarded tokens it separates the effect of the MLMC
+           estimator from the effect of training on shorter contexts.
 - weights: a fixed weight vector of length T read from a file (e.g. GLS
            weights estimated from the token-gradient covariance).
 
@@ -27,7 +31,7 @@ import torch
 from torch.nn import functional as F
 
 
-def mlmc_weights(batch_size, sequence_length, base, device="cpu"):
+def mlmc_weights(batch_size, sequence_length, base, telescope=True, device="cpu"):
     num_levels = sequence_length // base
     assert num_levels * base == sequence_length and num_levels & (num_levels - 1) == 0, (
         f"MLMC needs sequence_length / mlmc_base_tokens to be a power of two, "
@@ -43,6 +47,9 @@ def mlmc_weights(batch_size, sequence_length, base, device="cpu"):
     w = (pos < base).float() / base
     active = (levels <= max_level).unsqueeze(1)
     n_hi = (base * 2 ** levels.clamp(max=max_level)).unsqueeze(1)
+    if not telescope:
+        n = torch.where(active, n_hi, base)
+        return (pos < n).float() / n
     n_lo = n_hi // 2
     # 2^J * (mean over n_hi tokens - mean over n_lo tokens), and 2^J / n_hi = 1 / base
     correction = ((pos < n_hi).float() - 2.0 * (pos < n_lo).float()) / base
@@ -70,8 +77,9 @@ class TokenAggregator:
 
     def weights(self, x):
         B, T = x.shape
-        if self.mode == "mlmc":
-            return mlmc_weights(B, T, self.base, device=x.device)
+        if self.mode in ("mlmc", "prefix_mean"):
+            telescope = self.mode == "mlmc"
+            return mlmc_weights(B, T, self.base, telescope, device=x.device)
         if self.mode == "weights":
             return self.fixed.to(x.device).unsqueeze(0).expand(B, T)
         raise ValueError(f"Unknown token aggregation '{self.mode}'")

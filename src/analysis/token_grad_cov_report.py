@@ -16,6 +16,9 @@ For every input file the report computes
 - T_eff = T tr(C) / 1^T C 1: the number of IID tokens with the average
   variance that give the same variance of the plain mean as the T dependent
   ones. T_eff close to T means the dependence does not matter.
+- T_eff(n) for the prefixes of length n = 1, 2, 4, ..., T. If it saturates,
+  the late tokens of a window add little information about the gradient, and
+  the same tokens are better spent on more (shorter) sequences.
 - gls_gain = Var(plain mean) / Var(GLS), with C replaced by its stationary
   (Toeplitz) estimate built from the lag profile, and the GLS weights
   w = C^{-1} 1 / 1^T C^{-1} 1 (saved with --save_weights for --token_agg weights).
@@ -83,6 +86,12 @@ def t_eff(C):
     return float(T * np.trace(C) / C.sum())
 
 
+def prefix_t_eff(C):
+    T = C.shape[0]
+    ns = [2**j for j in range(int(np.log2(T)) + 1)] + ([T] if T & (T - 1) else [])
+    return {n: t_eff(C[:n, :n]) for n in ns}
+
+
 def toeplitz_gls(C):
     T = C.shape[0]
     c = np.array([np.diagonal(C, lag).mean() for lag in range(T)])
@@ -131,6 +140,7 @@ def analyse(path):
         "docs_per_window": float(docs[:, -1].mean() + 1),
         "T_eff_pos": t_eff(C_pos),
         "T_eff_glob": t_eff(C_glob),
+        "T_eff_prefix_pos": prefix_t_eff(C_pos),
         "floor_std": float(np.nanstd(profiles["floor"][1:])),
         "gls_gain_toeplitz": gain,
         "toeplitz_min_eval": min_eval,

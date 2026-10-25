@@ -166,7 +166,7 @@ def parse_args(base_parser, args, namespace):
 
     # Aggregation of per-token losses within a sequence (token-grad-averaging)
     parser.add_argument(
-        "--token_agg", default="mean", choices=["mean", "mlmc", "weights"]
+        "--token_agg", default="mean", choices=["mean", "mlmc", "prefix_mean", "weights"]
     )
     parser.add_argument("--mlmc_base_tokens", default=1, type=int)
     parser.add_argument("--token_weights_path", default=None, type=str)
