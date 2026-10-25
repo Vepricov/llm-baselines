@@ -5,7 +5,10 @@ compilable (avoids torch complex)
 
 import math
 
-import tiktoken
+try:
+    import tiktoken
+except ImportError:  # офлайн-кластер: tiktoken приносится отдельно
+    tiktoken = None
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -156,7 +159,12 @@ class Llama(GPTBase):
         assert config.vocab_size is not None
         assert config.sequence_length is not None
         self.config = config
-        self.tokenizer = tiktoken.get_encoding("gpt2")
+        self.tokenizer = None
+        if tiktoken is not None:
+            try:
+                self.tokenizer = tiktoken.get_encoding("gpt2")
+            except Exception:
+                self.tokenizer = None
 
         # create the token and position embeddings
         self.head_dim = config.n_embd // config.n_head

@@ -12,7 +12,20 @@ import torch
 
 import config
 import distributed
-import wandb
+try:
+    import wandb
+except ImportError:  # офлайн-кластер: wandb не установлен
+    class _DummyWandb:
+        run = None
+        @staticmethod
+        def init(*args, **kwargs): pass
+        @staticmethod
+        def log(*args, **kwargs): pass
+        @staticmethod
+        def define_metric(*args, **kwargs): pass
+        @staticmethod
+        def Table(*args, **kwargs): return None
+    wandb = _DummyWandb()
 from data.utils import DataReader, get_dataset
 from models.utils import get_model
 from optim.adafactor import Adafactor

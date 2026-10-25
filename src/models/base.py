@@ -9,7 +9,10 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 
 import math
 
-import tiktoken
+try:
+    import tiktoken
+except ImportError:  # офлайн-кластер: tiktoken приносится отдельно
+    tiktoken = None
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -146,7 +149,12 @@ class GPTBase(nn.Module):
         assert config.vocab_size is not None
         assert config.sequence_length is not None
         self.config = config
-        self.tokenizer = tiktoken.get_encoding("gpt2")
+        self.tokenizer = None
+        if tiktoken is not None:
+            try:
+                self.tokenizer = tiktoken.get_encoding("gpt2")
+            except Exception:
+                self.tokenizer = None
 
         self.transformer = nn.ModuleDict(
             dict(
