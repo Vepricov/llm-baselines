@@ -12,11 +12,6 @@ SRC="$ROOT/$PROJECT/repo/sber"
 TASK="$ROOT/$PROJECT/runs/${EXP}_${RUN_ID}"
 BASE="$ROOT/base"
 
-# experiments with sweep_<dataset>.txt are Slurm arrays, see sber/cluster_sweep.sh
-if ls "$SRC/experiments/$EXP"/sweep_*.txt >/dev/null 2>&1; then
-    exec bash "$SRC/cluster_sweep.sh" "$EXP" "$RUN_ID"
-fi
-
 mkdir -p "$TASK/logs" "$TASK/results"
 
 [ -f "$SRC/experiments/$EXP/train_slurm.sh" ] || {

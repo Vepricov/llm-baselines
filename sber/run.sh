@@ -26,8 +26,7 @@ REPO="${GIGALEARN_REPO:-Vepricov/llm-baselines}"
 BRANCH="${GIGALEARN_BRANCH:-tga}"
 BASE="${GIGALEARN_HOME:-$HOME/gigalearn}"
 PROJECT="${PROJECT:-$BRANCH}"
-# RESUME_RUN=<run id> continues an existing sweep instead of starting a new one
-RUN_ID="${RESUME_RUN:-$(date +%d-%m-%Y_%H-%M-%S)}"
+RUN_ID="$(date +%d-%m-%Y_%H-%M-%S)"
 RUN_DIR="$BASE/$PROJECT/runs/${EXP}_${RUN_ID}"
 mkdir -p "$RUN_DIR"
 
@@ -55,10 +54,6 @@ echo "== 3/3 результаты"
 if scp -q -r "$HOST:$REMOTE_HOME/gigalearn/$PROJECT/runs/${EXP}_${RUN_ID}/results/." "$RUN_DIR/" 2>/dev/null; then
     echo "готово: $RUN_DIR"
     ls -la "$RUN_DIR"
-    if [ -f "$RUN_DIR/submitted.txt" ]; then
-        echo "свип в очереди: ${EXP}_${RUN_ID}"
-        echo "сводка: giga status    продолжить после падения: giga resume"
-    fi
 else
     echo "результатов нет; лог на кластере: $REMOTE_HOME/gigalearn/$PROJECT/runs/${EXP}_${RUN_ID}/"
 fi

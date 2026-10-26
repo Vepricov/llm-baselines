@@ -1,7 +1,9 @@
 # token-grad-averaging, sweep on shakespeare-char (machinery check + first signal).
-# Format: name | flags | post. One line = one run on one GPU. "measure" in post =
-# after training, measure token-gradient covariance on every permanent checkpoint.
-# @common is prepended to every line; later flags win (argparse keeps the last value).
+# Format (gigalearn): name | flags | post. One line = one run on one GPU, run by line.sh.
+# @smoke --iterations 40 --eval_interval 20 --eval_batches 2 --log_interval 10 --warmup_steps 5 --latest_ckpt_interval 20
+@common goes before the flags of every line, @smoke after them in giga smoke; later flags
+# win (argparse keeps the last value). post "measure" = after training, measure the
+# token-gradient covariance on every permanent checkpoint.
 # Equal-token batches: B_mlmc = 64 * 256 / E[n], E[n] = b*L + b*2^-L, L = log2(256/b)
 #   b=1: 2047, b=16: 252, b=64: 114 (prefix_mean has the same prefix lengths).
 @objective token-grad-averaging: plain mean of token losses vs MLMC over prefix length (and the prefix_mean control) at equal forwarded tokens, plus token-gradient covariance on mean_s0 checkpoints (H1-H3 of notes/test-plan.md)
