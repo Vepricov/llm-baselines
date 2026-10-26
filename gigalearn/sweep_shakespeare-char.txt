@@ -1,12 +1,12 @@
 # token-grad-averaging, sweep on shakespeare-char (machinery check + first signal).
 # Format (gigalearn): name | flags | post. One line = one run on one GPU, run by line.sh.
-# @smoke --iterations 40 --eval_interval 20 --eval_batches 2 --log_interval 10 --warmup_steps 5 --latest_ckpt_interval 20
-@common goes before the flags of every line, @smoke after them in giga smoke; later flags
+# @common goes before the flags of every line, @smoke after them in giga smoke; later flags
 # win (argparse keeps the last value). post "measure" = after training, measure the
 # token-gradient covariance on every permanent checkpoint.
 # Equal-token batches: B_mlmc = 64 * 256 / E[n], E[n] = b*L + b*2^-L, L = log2(256/b)
 #   b=1: 2047, b=16: 252, b=64: 114 (prefix_mean has the same prefix lengths).
 @objective token-grad-averaging: plain mean of token losses vs MLMC over prefix length (and the prefix_mean control) at equal forwarded tokens, plus token-gradient covariance on mean_s0 checkpoints (H1-H3 of notes/test-plan.md)
+@smoke --iterations 40 --eval_interval 20 --eval_batches 2 --log_interval 10 --warmup_steps 5 --latest_ckpt_interval 20
 @common --model llama --dataset shakespeare-char --vocab_size 96 --sequence_length 256 --n_layer 6 --n_embd 384 --n_head 6 --dropout 0.2 --opt adamw --lr 1e-3 --scheduler cos --warmup_steps 100 --iterations 5000 --eval_interval 250 --eval_batches 12 --eval_batch_size 64 --log_interval 50 --latest_ckpt_interval 500
 mean_s0        | --batch_size 64 --seed 0 --permanent_ckpt_interval 1250 | measure
 mean_s1        | --batch_size 64 --seed 1 |
