@@ -79,6 +79,8 @@ def main(args, parser):
     # NOTE args.seed is offset per worker in get_adjusted_args_for_process
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
+    # cuDNN SDPA backward fails on very short prefixes (token_agg, base 1) on H100, torch 2.6
+    torch.backends.cuda.enable_cudnn_sdp(False)
     torch.manual_seed(args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
