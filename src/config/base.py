@@ -172,6 +172,7 @@ def parse_args(base_parser, args, namespace):
     parser.add_argument("--mlmc_base_tokens", default=1, type=int)
     parser.add_argument("--token_agg_truncate", action="store_true")
     parser.add_argument("--mlmc_shared_level", action="store_true")
+    parser.add_argument("--token_agg_max_tokens", default=32768, type=int)
     parser.add_argument("--token_weights_path", default=None, type=str)
 
     # Lab run recorder (src/lab_run.py); off unless a work slug is given

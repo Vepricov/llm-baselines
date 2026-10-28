@@ -141,12 +141,18 @@ def train(
                 # one forward/backward per prefix length, see optim/token_agg.py
                 loss = 0.0
                 for xg, yg, wg in token_agg.split(x, y, token_agg.weights(x)):
-                    tokens_forwarded += xg.numel()
-                    with type_ctx:
-                        logits = model(xg, targets=yg, get_logits=True)["logits"]
-                        group_loss = token_agg.loss(logits, yg, wg, x.shape[0])
-                    (group_loss / cfg.acc_steps).backward()
-                    loss = loss + group_loss.detach() / cfg.acc_steps
+                    # long groups are cut into chunks of at most token_agg_max_tokens tokens
+                    # (a shared level can cut every sequence of a large batch at full length);
+                    # the loss is divided by the full batch, so the gradient is the same
+                    rows = max(1, cfg.token_agg_max_tokens // xg.shape[1])
+                    for i in range(0, xg.shape[0], rows):
+                        xc, yc, wc = xg[i : i + rows], yg[i : i + rows], wg[i : i + rows]
+                        tokens_forwarded += xc.numel()
+                        with type_ctx:
+                            logits = model(xc, targets=yc, get_logits=True)["logits"]
+                            group_loss = token_agg.loss(logits, yc, wc, x.shape[0])
+                        (group_loss / cfg.acc_steps).backward()
+                        loss = loss + group_loss.detach() / cfg.acc_steps
                 substep += 1
                 continue
             tokens_forwarded += x.numel()

@@ -14,3 +14,8 @@ prefix_b16_s0  | --token_agg prefix_mean --mlmc_base_tokens 16 --batch_size 407 
 prefix_b16_s1  | --token_agg prefix_mean --mlmc_base_tokens 16 --batch_size 407 --token_agg_truncate --seed 1 |
 mlmc_b64_s0    | --token_agg mlmc --mlmc_base_tokens 64 --batch_size 164 --token_agg_truncate --seed 0 |
 prefix_b64_s0  | --token_agg prefix_mean --mlmc_base_tokens 64 --batch_size 164 --token_agg_truncate --seed 0 |
+# mlmcsh = one MLMC level per microbatch (--mlmc_shared_level): every sequence is cut to the
+# same length, one forward per step instead of one per prefix length; same E[n], same batch
+mlmcsh_b16_s0  | --token_agg mlmc --mlmc_base_tokens 16 --batch_size 407 --token_agg_truncate --mlmc_shared_level --seed 0 |
+mlmcsh_b16_s1  | --token_agg mlmc --mlmc_base_tokens 16 --batch_size 407 --token_agg_truncate --mlmc_shared_level --seed 1 |
+mlmcsh_b64_s0  | --token_agg mlmc --mlmc_base_tokens 64 --batch_size 164 --token_agg_truncate --mlmc_shared_level --seed 0 |
