@@ -41,7 +41,7 @@ import torch
 from torch.nn import functional as F
 
 
-def mlmc_weights(batch_size, sequence_length, base, telescope=True, device="cpu"):
+def mlmc_weights(batch_size, sequence_length, base, telescope=True, device="cpu", shared=False):
     num_levels = sequence_length // base
     assert num_levels * base == sequence_length and num_levels & (num_levels - 1) == 0, (
         f"MLMC needs sequence_length / mlmc_base_tokens to be a power of two, "
@@ -50,7 +50,9 @@ def mlmc_weights(batch_size, sequence_length, base, telescope=True, device="cpu"
     max_level = int(math.log2(num_levels))
 
     # P(J = j) = 2^{-j}, j >= 1
-    levels = torch.distributions.Geometric(probs=0.5).sample((batch_size,)) + 1
+    # shared: one level for the whole microbatch instead of one per sequence
+    levels = torch.distributions.Geometric(probs=0.5).sample((1 if shared else batch_size,)) + 1
+    levels = levels.expand(batch_size)
     levels = levels.to(device=device, dtype=torch.long)
 
     pos = torch.arange(sequence_length, device=device).unsqueeze(0)
@@ -80,6 +82,7 @@ class TokenAggregator:
         self.mode = cfg.token_agg
         self.base = cfg.mlmc_base_tokens
         self.truncate = cfg.token_agg_truncate
+        self.shared = cfg.mlmc_shared_level
         if self.truncate and cfg.distributed_backend is not None:
             raise ValueError(
                 "--token_agg_truncate runs one backward per prefix length and "
@@ -95,7 +98,7 @@ class TokenAggregator:
         B, T = x.shape
         if self.mode in ("mlmc", "prefix_mean"):
             telescope = self.mode == "mlmc"
-            return mlmc_weights(B, T, self.base, telescope, device=x.device)
+            return mlmc_weights(B, T, self.base, telescope, device=x.device, shared=self.shared)
         if self.mode == "weights":
             return self.fixed.to(x.device).unsqueeze(0).expand(B, T)
         raise ValueError(f"Unknown token aggregation '{self.mode}'")

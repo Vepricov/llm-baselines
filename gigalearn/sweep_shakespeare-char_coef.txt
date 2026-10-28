@@ -1,0 +1,20 @@
+# token-grad-averaging, shakespeare-char, more coefficient-only variants (complements
+# sweep_shakespeare-char). Format (gigalearn): name | flags | post.
+# Every line trains the same way as mean (full sequences, batch 64, one forward and one
+# backward); only the weights of the token losses differ. mlmcsh = one MLMC level per
+# microbatch (--mlmc_shared_level) instead of one per sequence.
+@objective token-grad-averaging on shakespeare-char: MLMC base 4 and a shared MLMC level per batch, same batch and forward pass as mean
+@smoke --iterations 40 --eval_interval 20 --eval_batches 2 --log_interval 10 --warmup_steps 5 --latest_ckpt_interval 20
+@common --model llama --dataset shakespeare-char --vocab_size 96 --sequence_length 256 --n_layer 6 --n_embd 384 --n_head 6 --dropout 0.2 --opt adamw --lr 1e-3 --scheduler cos --warmup_steps 100 --iterations 5000 --eval_interval 250 --eval_batches 12 --eval_batch_size 64 --log_interval 50 --latest_ckpt_interval 500
+mlmc_b4_s0     | --token_agg mlmc --mlmc_base_tokens 4 --batch_size 64 --seed 0 |
+mlmc_b4_s1     | --token_agg mlmc --mlmc_base_tokens 4 --batch_size 64 --seed 1 |
+mlmc_b4_s2     | --token_agg mlmc --mlmc_base_tokens 4 --batch_size 64 --seed 2 |
+mlmcsh_b1_s0   | --token_agg mlmc --mlmc_base_tokens 1 --mlmc_shared_level --batch_size 64 --seed 0 |
+mlmcsh_b1_s1   | --token_agg mlmc --mlmc_base_tokens 1 --mlmc_shared_level --batch_size 64 --seed 1 |
+mlmcsh_b1_s2   | --token_agg mlmc --mlmc_base_tokens 1 --mlmc_shared_level --batch_size 64 --seed 2 |
+mlmcsh_b16_s0  | --token_agg mlmc --mlmc_base_tokens 16 --mlmc_shared_level --batch_size 64 --seed 0 |
+mlmcsh_b16_s1  | --token_agg mlmc --mlmc_base_tokens 16 --mlmc_shared_level --batch_size 64 --seed 1 |
+mlmcsh_b16_s2  | --token_agg mlmc --mlmc_base_tokens 16 --mlmc_shared_level --batch_size 64 --seed 2 |
+mlmcsh_b64_s0  | --token_agg mlmc --mlmc_base_tokens 64 --mlmc_shared_level --batch_size 64 --seed 0 |
+mlmcsh_b64_s1  | --token_agg mlmc --mlmc_base_tokens 64 --mlmc_shared_level --batch_size 64 --seed 1 |
+mlmcsh_b64_s2  | --token_agg mlmc --mlmc_base_tokens 64 --mlmc_shared_level --batch_size 64 --seed 2 |
