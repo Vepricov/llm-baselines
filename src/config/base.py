@@ -170,6 +170,7 @@ def parse_args(base_parser, args, namespace):
         "--token_agg", default="mean", choices=["mean", "mlmc", "prefix_mean", "weights"]
     )
     parser.add_argument("--mlmc_base_tokens", default=1, type=int)
+    parser.add_argument("--token_agg_truncate", action="store_true")
     parser.add_argument("--token_weights_path", default=None, type=str)
 
     # Lab run recorder (src/lab_run.py); off unless a work slug is given

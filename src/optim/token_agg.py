@@ -19,9 +19,19 @@ position weights w that sum to one per sequence:
 - weights: a fixed weight vector of length T read from a file (e.g. GLS
            weights estimated from the token-gradient covariance).
 
-Training is otherwise unchanged: every mode forwards the full sequences of
-the same batch with one forward and one backward, only the weights of the
-token losses differ from the plain mean.
+By default training is otherwise unchanged: every mode forwards the full
+sequences of the same batch with one forward and one backward, only the
+weights of the token losses differ from the plain mean. Then E[w] = 1/T per
+sequence, so mlmc is the plain mean plus zero-mean noise and cannot have a
+smaller variance.
+
+With --token_agg_truncate, positions to the right of the last nonzero weight
+of a sequence are not forwarded at all: causal attention makes the losses of
+a prefix independent of what follows, so truncation is exact and saves
+compute, and the modes are compared at equal forwarded tokens (larger batch).
+Sequences are grouped by prefix length and each group gets its own forward
+and backward, which is why this runs without DDP (several backward passes
+inside one microstep would trigger several gradient all-reduces).
 """
 
 import math
@@ -69,6 +79,12 @@ class TokenAggregator:
     def __init__(self, cfg):
         self.mode = cfg.token_agg
         self.base = cfg.mlmc_base_tokens
+        self.truncate = cfg.token_agg_truncate
+        if self.truncate and cfg.distributed_backend is not None:
+            raise ValueError(
+                "--token_agg_truncate runs one backward per prefix length and "
+                "is not supported with DDP; run it on a single GPU"
+            )
         self.fixed = (
             load_weights(cfg.token_weights_path, cfg.sequence_length)
             if self.mode == "weights"
@@ -83,6 +99,27 @@ class TokenAggregator:
         if self.mode == "weights":
             return self.fixed.to(x.device).unsqueeze(0).expand(B, T)
         raise ValueError(f"Unknown token aggregation '{self.mode}'")
+
+    @staticmethod
+    def split(x, y, w):
+        """Group the sequences of a microbatch by the length of their weight support.
+
+        Every group is forwarded on its own prefix only, so the forwarded tokens are
+        sum_b len_b instead of B * max_b len_b. Each group carries its rows of w.
+        """
+        lengths = (w != 0).flip(1).int().argmax(1)
+        lengths = w.shape[1] - lengths
+        groups = []
+        for length in lengths.unique().tolist():
+            rows = (lengths == length).nonzero().squeeze(1)
+            groups.append(
+                (
+                    x[rows, :length].contiguous(),
+                    y[rows, :length].contiguous(),
+                    w[rows, :length],
+                )
+            )
+        return groups
 
     @staticmethod
     def loss(logits, y, w, batch_size):
