@@ -20,6 +20,14 @@ case "$ARGS" in
     *"--dataset fineweb"*) [ "${SMOKE:-0}" = "1" ] || TRAIN_EXTRA="--latest_ckpt_interval 200" ;;
 esac
 
+# a checkpoint written by a job killed inside torch.save (before atomic saves) cannot be read
+# and would fail every attempt: drop it and start the line over
+LATEST="$EXPS_DIR/$NAME/ckpts/latest"
+if [ -f "$LATEST/main.pt" ] && ! "$PY" -c "import sys, zipfile; sys.exit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)" "$LATEST/main.pt"; then
+    echo "broken checkpoint $LATEST/main.pt, starting the line over" >> "$RUN_DIR/train.log"
+    rm -rf "$LATEST"
+fi
+
 # shellcheck disable=SC2086
 "$PY" src/main.py $ARGS $EXTRA $TRAIN_EXTRA $PLACE \
     --experiment_name "$NAME" --results_base_folder "$EXPS_DIR" \
