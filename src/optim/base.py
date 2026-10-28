@@ -137,18 +137,6 @@ def train(
         t_start = time.perf_counter_ns()
         for microstep_idx in range(cfg.acc_steps):  # gradient accumulation
             x, y = get_batch(train_reader, device=cfg.device)
-            if token_agg is not None:
-                # one forward/backward per prefix length, see optim/token_agg.py
-                loss = 0.0
-                for xg, yg, wg in token_agg.split(x, y, token_agg.weights(x)):
-                    tokens_forwarded += xg.numel()
-                    with type_ctx:
-                        logits = model(xg, targets=yg, get_logits=True)["logits"]
-                        group_loss = token_agg.loss(logits, yg, wg, x.shape[0])
-                    (group_loss / cfg.acc_steps).backward()
-                    loss = loss + group_loss.detach() / cfg.acc_steps
-                substep += 1
-                continue
             tokens_forwarded += x.numel()
             with type_ctx:
                 with distributed_backend.get_context_for_microstep_forward(
@@ -156,9 +144,15 @@ def train(
                     microstep_idx=microstep_idx,
                     gradient_accumulation_steps=cfg.acc_steps,
                 ):
-                    outputs = model(x, targets=y)
+                    if token_agg is None:
+                        outputs = model(x, targets=y)
+                        loss = outputs["loss"] / cfg.acc_steps
+                    else:
+                        # same forward/backward as mean, only the token-loss weights change
+                        logits = model(x, targets=y, get_logits=True)["logits"]
+                        w = token_agg.weights(x)
+                        loss = token_agg.loss(logits, y, w, x.shape[0]) / cfg.acc_steps
 
-            loss = outputs["loss"] / cfg.acc_steps
             loss.backward()
             substep += 1
 
