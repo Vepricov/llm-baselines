@@ -1,4 +1,5 @@
 import math
+import os
 import random
 from contextlib import nullcontext
 from pathlib import Path
@@ -135,6 +136,14 @@ def eval_sweep_alphath(
     return x_axis, y_axis_acc, y_axis_pp, y_axis_loss
 
 
+def _atomic_save(obj, path: Path):
+    # a preempted job can die inside torch.save; write aside and rename so a resume never
+    # reads a half-written checkpoint
+    tmp = path.with_name(path.name + ".tmp")
+    torch.save(obj, tmp)
+    os.replace(tmp, path)
+
+
 def save_checkpoint(model, opt, scheduler, itr, ckpt_dir: Path):
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):
         model = model.module
@@ -146,7 +155,7 @@ def save_checkpoint(model, opt, scheduler, itr, ckpt_dir: Path):
         "itr": itr,
     }
     ckpt_dir.mkdir(exist_ok=True, parents=True)
-    torch.save(checkpoint, ckpt_dir / "main.pt")
+    _atomic_save(checkpoint, ckpt_dir / "main.pt")
 
 
 def load_checkpoint(model, opt, scheduler, ckpt_path, device):
@@ -172,7 +181,7 @@ def save_worker_state(ckpt_dir: Path):
     }
     rank = 0 if not dist.is_initialized() else dist.get_rank()
     ckpt_dir.mkdir(exist_ok=True, parents=True)
-    torch.save(worker_state, ckpt_dir / f"worker_{rank}.pt")
+    _atomic_save(worker_state, ckpt_dir / f"worker_{rank}.pt")
 
 
 def load_worker_state(ckpt_dir: Path):
