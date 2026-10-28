@@ -9,14 +9,13 @@ PLACE="--datasets_dir $DATA_DIR --device ${DEVICE:-cuda:0}"
 # lines die by SIGTERM outside Slurm (steps end COMPLETED): unbuffered log shows how far the
 # line got, and killed.log records when it died and what the node and GPU were doing
 export PYTHONUNBUFFERED=1
-on_term() {
-    { echo "== SIGTERM $(date '+%d-%m-%Y %H:%M:%S') on $(hostname), line $NAME"
+on_signal() {
+    { echo "== killed by signal $(( $1 - 128 )) $(date '+%d-%m-%Y %H:%M:%S') on $(hostname), line $NAME"
       nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv 2>&1
       nvidia-smi --query-compute-apps=pid,used_memory --format=csv 2>&1
       ps -eo pid,ppid,user,etime,stat,rss,args --sort=-rss 2>&1 | head -25
       free -g 2>&1; uptime; } >> "$RUN_DIR/killed.log"
 }
-trap on_term TERM
 EXTRA=""
 NSEQ="${MEASURE_N_SEQS:-32}"
 if [ "${SMOKE:-0}" = "1" ] && [ "$POST" = "measure" ]; then
@@ -43,7 +42,10 @@ fi
 "$PY" src/main.py $ARGS $EXTRA $TRAIN_EXTRA $PLACE \
     --experiment_name "$NAME" --results_base_folder "$EXPS_DIR" \
     --lab_run_work token-grad-averaging --lab_run_objective "$OBJECTIVE" \
-    >> "$RUN_DIR/train.log" 2>&1 || exit $?
+    >> "$RUN_DIR/train.log" 2>&1
+RC=$?
+[ "$RC" -gt 128 ] && on_signal "$RC"
+[ "$RC" -eq 0 ] || exit "$RC"
 
 [ "$POST" = "measure" ] || exit 0
 for CKPT in "$EXPS_DIR/$NAME/ckpts/"[0-9]*; do
