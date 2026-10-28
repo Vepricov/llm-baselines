@@ -1,0 +1,20 @@
+# token-grad-averaging, first FineWeb sweep: llama 124M, T=512, ~0.5B tokens per line.
+# Format (gigalearn): name | flags | post. One line = one run on one GPU, run by line.sh.
+# post "measure" = after training, measure the token-gradient covariance on every
+# permanent checkpoint of mean_s0 (H1, H2 of notes/test-plan.md).
+# Equal-token batches: B = 64 * 512 / E[n], E[n] = b*L + b*2^-L, L = log2(512/b)
+#   b=16: 407, b=64: 164 (prefix_mean has the same prefix lengths).
+# b=1 is left out here: on shakespeare it crashed in cuDNN attention (fixed in 840a7af,
+# not yet rerun), and with T=512 it means ~3600 sequences per step.
+@objective token-grad-averaging on FineWeb: token-gradient covariance of a 124M llama during pretraining (H1, H2) and plain mean vs MLMC over prefix length vs prefix_mean at equal forwarded tokens (H3)
+@needs data/fineweb-100BT/train.bin
+@smoke --iterations 40 --eval_interval 20 --eval_batches 2 --log_interval 10 --warmup_steps 5 --latest_ckpt_interval 20
+@common --model llama --dataset fineweb --sequence_length 512 --n_layer 12 --n_embd 768 --n_head 12 --opt adamw --lr 1e-3 --scheduler cos --warmup_steps 1000 --iterations 15000 --eval_interval 500 --eval_batches 32 --eval_batch_size 32 --log_interval 50 --latest_ckpt_interval 1000
+mean_s0        | --batch_size 64 --seed 0 --permanent_ckpt_interval 3750 | measure
+mean_s1        | --batch_size 64 --seed 1 |
+mlmc_b16_s0    | --token_agg mlmc --mlmc_base_tokens 16 --batch_size 407 --seed 0 |
+mlmc_b16_s1    | --token_agg mlmc --mlmc_base_tokens 16 --batch_size 407 --seed 1 |
+prefix_b16_s0  | --token_agg prefix_mean --mlmc_base_tokens 16 --batch_size 407 --seed 0 |
+prefix_b16_s1  | --token_agg prefix_mean --mlmc_base_tokens 16 --batch_size 407 --seed 1 |
+mlmc_b64_s0    | --token_agg mlmc --mlmc_base_tokens 64 --batch_size 164 --seed 0 |
+prefix_b64_s0  | --token_agg prefix_mean --mlmc_base_tokens 64 --batch_size 164 --seed 0 |
