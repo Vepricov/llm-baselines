@@ -13,8 +13,15 @@ if [ "${SMOKE:-0}" = "1" ] && [ "$POST" = "measure" ]; then
     NSEQ=2
 fi
 
+# HGX preempts and requeues our jobs (PreemptMode=REQUEUE): FineWeb lines checkpoint every
+# 200 steps (~1 min) so a requeued attempt loses little; later flags win over the sweep's value
+TRAIN_EXTRA=""
+case "$ARGS" in
+    *"--dataset fineweb"*) [ "${SMOKE:-0}" = "1" ] || TRAIN_EXTRA="--latest_ckpt_interval 200" ;;
+esac
+
 # shellcheck disable=SC2086
-"$PY" src/main.py $ARGS $EXTRA $PLACE \
+"$PY" src/main.py $ARGS $EXTRA $TRAIN_EXTRA $PLACE \
     --experiment_name "$NAME" --results_base_folder "$EXPS_DIR" \
     --lab_run_work token-grad-averaging --lab_run_objective "$OBJECTIVE" \
     >> "$RUN_DIR/train.log" 2>&1 || exit $?
